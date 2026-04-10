@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azalyst Alpha X — Live Trading Dashboard</title>
+    <meta name="description" content="Real-time multi-strategy crypto trading dashboard with prop firm risk management">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <div class="app-container">
+
+        <header class="top-bar">
+            <div class="logo-section">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <path d="M14 2L26 8V20L14 26L2 20V8L14 2Z" stroke="url(#logoGrad)" stroke-width="2" fill="none"/>
+                        <path d="M14 8L20 11V17L14 20L8 17V11L14 8Z" fill="url(#logoGrad)"/>
+                        <defs><linearGradient id="logoGrad" x1="2" y1="2" x2="26" y2="26"><stop stop-color="#00F0FF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <span class="brand">AZALYST ALPHA X</span>
+                    <span class="sub">Multi-Strategy Live Trader</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="status-pill" id="statusPill">
+                    <span class="pulse"></span>
+                    <span id="modeLabel">CONNECTING...</span>
+                </div>
+                <div class="scan-info">
+                    <span class="label">Next Scan</span>
+                    <span class="value" id="nextScanCountdown">--:--</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="metrics-row" id="metricsRow">
+            <div class="metric-card">
+                <span class="metric-label">Balance</span>
+                <span class="metric-value" id="metricBalance">$--</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Daily P&L</span>
+                <span class="metric-value" id="metricDailyPnl">$--</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Drawdown</span>
+                <span class="metric-value" id="metricDrawdown">--%</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Win Rate</span>
+                <span class="metric-value" id="metricWinRate">--%</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Open Trades</span>
+                <span class="metric-value" id="metricOpenCount">--/--</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Total Closed</span>
+                <span class="metric-value" id="metricClosedCount">--</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Leverage</span>
+                <span class="metric-value" id="metricLeverage">--x</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Risk/Trade</span>
+                <span class="metric-value" id="metricRisk">--%</span>
+            </div>
+        </section>
+
+        <section class="prop-firm-bar" id="propFirmBar">
+            <div class="prop-limit">
+                <div class="prop-header">
+                    <span class="prop-label">Max Drawdown Limit</span>
+                    <span class="prop-value" id="propDdValue">0% / 50%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill dd-fill" id="propDdFill" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="prop-limit">
+                <div class="prop-header">
+                    <span class="prop-label">Daily Loss Limit</span>
+                    <span class="prop-value" id="propDailyValue">$0 / $2,500</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill daily-fill" id="propDailyFill" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="main-grid">
+
+            <div class="panel open-trades-panel">
+                <div class="panel-header">
+                    <h2>Open Positions</h2>
+                    <span class="badge" id="openBadge">0</span>
+                </div>
+                <div class="table-wrap">
+                    <table id="openTradesTable">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Entry</th>
+                                <th>Stop Loss</th>
+                                <th>Take Profit</th>
+                                <th>Qty</th>
+                                <th>Strategies</th>
+                                <th>Hold</th>
+                            </tr>
+                        </thead>
+                        <tbody id="openTradesBody">
+                            <tr class="empty-row"><td colspan="8">No open positions</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel equity-panel">
+                <div class="panel-header">
+                    <h2>Equity Curve</h2>
+                </div>
+                <div class="chart-container">
+                    <canvas id="equityChart"></canvas>
+                    <div class="chart-empty" id="chartEmpty">Equity data will appear after first scan</div>
+                </div>
+            </div>
+
+        </section>
+
+        <section class="closed-section">
+            <div class="panel closed-trades-panel">
+                <div class="panel-header">
+                    <h2>Trade History</h2>
+                    <span class="badge" id="closedBadge">0</span>
+                </div>
+                <div class="table-wrap">
+                    <table id="closedTradesTable">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Entry</th>
+                                <th>Exit</th>
+                                <th>P&L %</th>
+                                <th>P&L $</th>
+                                <th>Reason</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="closedTradesBody">
+                            <tr class="empty-row"><td colspan="8">No closed trades yet</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer-bar">
+            <span>Azalyst Alpha X v2.0.0</span>
+            <span id="lastUpdate">Last update: --</span>
+        </footer>
+
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,667 @@
+[2026-04-10 16:48:53 UTC] [ERROR] Missing API credentials!
+[2026-04-10 16:48:53 UTC] [ERROR] Set BINANCE_API_KEY and BINANCE_API_SECRET environment variables,
+[2026-04-10 16:48:53 UTC] [ERROR] or pass --api-key and --api-secret arguments.
+[2026-04-10 16:51:57 UTC] [INFO] Using Binance LIVE (real money!)
+[2026-04-10 16:51:57 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 16:51:57 UTC] [INFO] ================================================================================
+[2026-04-10 16:51:57 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 16:51:57 UTC] [INFO] ================================================================================
+[2026-04-10 16:51:57 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 16:51:57 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 16:51:57 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 16:51:57 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 16:51:57 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 16:51:57 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 16:51:57 UTC] [INFO] ================================================================================
+[2026-04-10 16:51:57 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 16:51:57 UTC] [ERROR] Fatal error: binance {"code":-2008,"msg":"Invalid Api-Key ID."}
+Traceback (most recent call last):
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 584, in fetch
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error:  for url: https://api.binance.com/sapi/v1/capital/config/getall?timestamp=1775839917539&recvWindow=10000&signature=92dc157c512938d83048dae34a03d0b297e8086a8a2c171e9164ea8c357d04b7
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 526, in run
+    self.initialize()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 195, in initialize
+    markets = self.exchange.load_markets()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 1567, in load_markets
+    currencies = self.fetch_currencies()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 2854, in fetch_currencies
+    promises = [self.sapiGetCapitalConfigGetall(params)]
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\types.py", line 35, in unbound_method
+    return _self.request(self.path, self.api, self.method, params, config=self.config)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11457, in request
+    response = self.fetch2(path, api, method, params, headers, body, config)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4720, in fetch2
+    raise e
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4709, in fetch2
+    return self.fetch(request['url'], request['method'], request['headers'], request['body'])
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 600, in fetch
+    skip_further_error_handling = self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11424, in handle_errors
+    self.throw_exactly_matched_exception(self.get_exceptions_by_url(url, 'exact'), error, feedback)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 5124, in throw_exactly_matched_exception
+    raise exact[string](message)
+ccxt.base.errors.AuthenticationError: binance {"code":-2008,"msg":"Invalid Api-Key ID."}
+
+[2026-04-10 16:51:57 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 16:53:31 UTC] [INFO] Using Binance LIVE (real money!)
+[2026-04-10 16:53:31 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 16:53:31 UTC] [INFO] ================================================================================
+[2026-04-10 16:53:31 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 16:53:31 UTC] [INFO] ================================================================================
+[2026-04-10 16:53:31 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 16:53:31 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 16:53:31 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 16:53:31 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 16:53:31 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 16:53:31 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 16:53:31 UTC] [INFO] ================================================================================
+[2026-04-10 16:53:31 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 16:53:32 UTC] [ERROR] Fatal error: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+Traceback (most recent call last):
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 584, in fetch
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error:  for url: https://api.binance.com/sapi/v1/capital/config/getall?timestamp=1775840011980&recvWindow=10000&signature=a422bdb2efd77d424582dc8a7f7213a9a185ac8a249567ea7f7997a7e9f0385e
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 526, in run
+    self.initialize()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 195, in initialize
+    markets = self.exchange.load_markets()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 1567, in load_markets
+    currencies = self.fetch_currencies()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 2854, in fetch_currencies
+    promises = [self.sapiGetCapitalConfigGetall(params)]
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\types.py", line 35, in unbound_method
+    return _self.request(self.path, self.api, self.method, params, config=self.config)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11457, in request
+    response = self.fetch2(path, api, method, params, headers, body, config)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4720, in fetch2
+    raise e
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4709, in fetch2
+    return self.fetch(request['url'], request['method'], request['headers'], request['body'])
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 600, in fetch
+    skip_further_error_handling = self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11425, in handle_errors
+    self.throw_exactly_matched_exception(self.exceptions['exact'], error, feedback)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 5124, in throw_exactly_matched_exception
+    raise exact[string](message)
+ccxt.base.errors.AuthenticationError: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+
+[2026-04-10 16:53:32 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 16:53:40 UTC] [INFO] Using Binance LIVE (real money!)
+[2026-04-10 16:53:40 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 16:53:40 UTC] [INFO] ================================================================================
+[2026-04-10 16:53:40 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 16:53:40 UTC] [INFO] ================================================================================
+[2026-04-10 16:53:40 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 16:53:40 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 16:53:40 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 16:53:40 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 16:53:40 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 16:53:40 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 16:53:40 UTC] [INFO] ================================================================================
+[2026-04-10 16:53:40 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 16:53:40 UTC] [ERROR] Fatal error: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+Traceback (most recent call last):
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 584, in fetch
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error:  for url: https://api.binance.com/sapi/v1/capital/config/getall?timestamp=1775840020243&recvWindow=10000&signature=415917680954e7ea1e5d476df0a4e007e76a7ab8e4dd278b950e4994a228393d
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 526, in run
+    self.initialize()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 195, in initialize
+    markets = self.exchange.load_markets()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 1567, in load_markets
+    currencies = self.fetch_currencies()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 2854, in fetch_currencies
+    promises = [self.sapiGetCapitalConfigGetall(params)]
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\types.py", line 35, in unbound_method
+    return _self.request(self.path, self.api, self.method, params, config=self.config)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11457, in request
+    response = self.fetch2(path, api, method, params, headers, body, config)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4720, in fetch2
+    raise e
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4709, in fetch2
+    return self.fetch(request['url'], request['method'], request['headers'], request['body'])
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 600, in fetch
+    skip_further_error_handling = self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11425, in handle_errors
+    self.throw_exactly_matched_exception(self.exceptions['exact'], error, feedback)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 5124, in throw_exactly_matched_exception
+    raise exact[string](message)
+ccxt.base.errors.AuthenticationError: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+
+[2026-04-10 16:53:40 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 16:55:25 UTC] [INFO] Using Binance LIVE (real money!)
+[2026-04-10 16:55:25 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 16:55:25 UTC] [INFO] ================================================================================
+[2026-04-10 16:55:25 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 16:55:25 UTC] [INFO] ================================================================================
+[2026-04-10 16:55:25 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 16:55:25 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 16:55:25 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 16:55:25 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 16:55:25 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 16:55:25 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 16:55:25 UTC] [INFO] ================================================================================
+[2026-04-10 16:55:25 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 16:55:25 UTC] [ERROR] Fatal error: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+Traceback (most recent call last):
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 584, in fetch
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error:  for url: https://api.binance.com/sapi/v1/capital/config/getall?timestamp=1775840125385&recvWindow=10000&signature=042488ae48bbd3bb7bad11a52f18272a9635b29178990942a7418c8e36549cd6
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 526, in run
+    self.initialize()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 195, in initialize
+    markets = self.exchange.load_markets()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 1567, in load_markets
+    currencies = self.fetch_currencies()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 2854, in fetch_currencies
+    promises = [self.sapiGetCapitalConfigGetall(params)]
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\types.py", line 35, in unbound_method
+    return _self.request(self.path, self.api, self.method, params, config=self.config)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11457, in request
+    response = self.fetch2(path, api, method, params, headers, body, config)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4720, in fetch2
+    raise e
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4709, in fetch2
+    return self.fetch(request['url'], request['method'], request['headers'], request['body'])
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 600, in fetch
+    skip_further_error_handling = self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11425, in handle_errors
+    self.throw_exactly_matched_exception(self.exceptions['exact'], error, feedback)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 5124, in throw_exactly_matched_exception
+    raise exact[string](message)
+ccxt.base.errors.AuthenticationError: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+
+[2026-04-10 16:55:25 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 16:56:07 UTC] [INFO] Using Binance TESTNET
+[2026-04-10 16:56:07 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 16:56:07 UTC] [INFO] ================================================================================
+[2026-04-10 16:56:07 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 16:56:07 UTC] [INFO] ================================================================================
+[2026-04-10 16:56:07 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 16:56:07 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 16:56:07 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 16:56:07 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 16:56:07 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 16:56:07 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 16:56:07 UTC] [INFO] ================================================================================
+[2026-04-10 16:56:07 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 16:56:07 UTC] [ERROR] Fatal error: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+Traceback (most recent call last):
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 584, in fetch
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error:  for url: https://api.binance.com/sapi/v1/capital/config/getall?timestamp=1775840167165&recvWindow=10000&signature=6e9948761d91d3a8bff3da9ab4199d4d1cc2fcf7b06592a78eeba9f6572f2061
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 526, in run
+    self.initialize()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 195, in initialize
+    markets = self.exchange.load_markets()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 1567, in load_markets
+    currencies = self.fetch_currencies()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 2854, in fetch_currencies
+    promises = [self.sapiGetCapitalConfigGetall(params)]
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\types.py", line 35, in unbound_method
+    return _self.request(self.path, self.api, self.method, params, config=self.config)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11457, in request
+    response = self.fetch2(path, api, method, params, headers, body, config)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4720, in fetch2
+    raise e
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4709, in fetch2
+    return self.fetch(request['url'], request['method'], request['headers'], request['body'])
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 600, in fetch
+    skip_further_error_handling = self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11425, in handle_errors
+    self.throw_exactly_matched_exception(self.exceptions['exact'], error, feedback)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 5124, in throw_exactly_matched_exception
+    raise exact[string](message)
+ccxt.base.errors.AuthenticationError: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+
+[2026-04-10 16:56:07 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 17:00:18 UTC] [INFO] Using Binance LIVE (real money!)
+[2026-04-10 17:00:18 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 17:00:18 UTC] [INFO] ================================================================================
+[2026-04-10 17:00:18 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 17:00:18 UTC] [INFO] ================================================================================
+[2026-04-10 17:00:18 UTC] [INFO] Mode: LIVE TRADING
+[2026-04-10 17:00:18 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 17:00:18 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 17:00:18 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 17:00:18 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 17:00:18 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 17:00:18 UTC] [INFO] ================================================================================
+[2026-04-10 17:00:18 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 17:00:18 UTC] [ERROR] Fatal error: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+Traceback (most recent call last):
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 584, in fetch
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error:  for url: https://api.binance.com/sapi/v1/capital/config/getall?timestamp=1775840418511&recvWindow=10000&signature=58d17004729a73c4dfc7bb208d35ecba8d770779ca909e28350d1e806f4c11f6
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 526, in run
+    self.initialize()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 195, in initialize
+    markets = self.exchange.load_markets()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 1567, in load_markets
+    currencies = self.fetch_currencies()
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 2854, in fetch_currencies
+    promises = [self.sapiGetCapitalConfigGetall(params)]
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\types.py", line 35, in unbound_method
+    return _self.request(self.path, self.api, self.method, params, config=self.config)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11457, in request
+    response = self.fetch2(path, api, method, params, headers, body, config)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4720, in fetch2
+    raise e
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4709, in fetch2
+    return self.fetch(request['url'], request['method'], request['headers'], request['body'])
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 600, in fetch
+    skip_further_error_handling = self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 11425, in handle_errors
+    self.throw_exactly_matched_exception(self.exceptions['exact'], error, feedback)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 5124, in throw_exactly_matched_exception
+    raise exact[string](message)
+ccxt.base.errors.AuthenticationError: binance {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
+
+[2026-04-10 17:00:18 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 17:01:37 UTC] [INFO] Operating in Signal-Only Mode (No API keys required, no real trades).
+[2026-04-10 17:01:37 UTC] [INFO] Using Binance Public Data (Paper Trading)
+[2026-04-10 17:01:37 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 17:01:37 UTC] [INFO] ================================================================================
+[2026-04-10 17:01:37 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 17:01:37 UTC] [INFO] ================================================================================
+[2026-04-10 17:01:37 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 17:01:37 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 17:01:37 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 17:01:37 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 17:01:37 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 17:01:37 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 17:01:37 UTC] [INFO] ================================================================================
+[2026-04-10 17:01:37 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 17:01:39 UTC] [INFO] Found 1323 USDT pairs. Fetching volume data...
+[2026-04-10 17:01:39 UTC] [ERROR] Fatal error: binance does not have market symbol BCC/USDT
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 526, in run
+    self.initialize()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 210, in initialize
+    tickers = self.exchange.fetch_tickers(filtered)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 4355, in fetch_tickers
+    symbols = self.market_symbols(symbols, None, True, True, True)
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\base\exchange.py", line 4231, in market_symbols
+    market = self.market(symbols[i])
+  File "C:\Users\mayur\AppData\Local\Programs\Python\Python313\Lib\site-packages\ccxt\binance.py", line 2767, in market
+    raise BadSymbol(self.id + ' does not have market symbol ' + symbol)
+ccxt.base.errors.BadSymbol: binance does not have market symbol BCC/USDT
+
+[2026-04-10 17:01:39 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 17:03:17 UTC] [INFO] Operating in Signal-Only Mode (No API keys required, no real trades).
+[2026-04-10 17:03:17 UTC] [INFO] Using Binance Public Data (Paper Trading)
+[2026-04-10 17:03:17 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 17:03:17 UTC] [INFO] ================================================================================
+[2026-04-10 17:03:17 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 17:03:17 UTC] [INFO] ================================================================================
+[2026-04-10 17:03:17 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 17:03:17 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 17:03:17 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 17:03:17 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 17:03:17 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 17:03:17 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 17:03:17 UTC] [INFO] ================================================================================
+[2026-04-10 17:03:17 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 17:03:18 UTC] [INFO] Found 1004 active USDT pairs. Fetching volume data...
+[2026-04-10 17:03:20 UTC] [INFO] Selected top 30 symbols:
+[2026-04-10 17:03:20 UTC] [INFO]   - BTC/USDT:USDT
+[2026-04-10 17:03:20 UTC] [INFO]   - ETH/USDT:USDT
+[2026-04-10 17:03:20 UTC] [INFO]   - RAVE/USDT:USDT
+[2026-04-10 17:03:20 UTC] [INFO]   - SOL/USDT:USDT
+[2026-04-10 17:03:20 UTC] [INFO]   - ZEC/USDT:USDT
+[2026-04-10 17:03:20 UTC] [INFO]   ... and 25 more
+[2026-04-10 17:03:20 UTC] [INFO] Setting leverage...
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for BTC/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for ETH/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for RAVE/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for SOL/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for ZEC/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for CL/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for TAO/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for XAG/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for XAU/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for XRP/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for DOGE/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for ARIA/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for HYPE/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for 1000PEPE/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for BZ/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for DASH/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for BNB/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:20 UTC] [WARN] Failed to set leverage for SIREN/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for BULLA/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for WLFI/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for MAGMA/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for ENA/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for NOM/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for RIVER/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for AVAX/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for ADA/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for SUI/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for NEAR/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for CRCL/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [WARN] Failed to set leverage for LINK/USDT:USDT: binance requires "apiKey" credential
+[2026-04-10 17:03:21 UTC] [INFO] Initialization complete. Scanning 30 symbols...
+[2026-04-10 17:03:22 UTC] [INFO] 
+Starting live trading loop...
+[2026-04-10 17:03:22 UTC] [INFO] Press Ctrl+C to stop
+
+[2026-04-10 17:03:22 UTC] [INFO] Scanning 30 symbols... (0/20 open)
+[2026-04-10 17:03:27 UTC] [INFO] Balance: $10000.00 | Open: 0 | Closed: 0 | Daily PnL: $+0.00
+[2026-04-10 17:03:27 UTC] [INFO] Next scan in 30 minutes...
+[2026-04-10 17:10:31 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:33 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:33 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:33 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:34 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:34 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:34 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:34 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:34 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:35 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:35 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:35 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:35 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:35 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:36 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:37 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:37 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:37 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:37 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:10:37 UTC] [ERROR] Fatal error: reentrant call inside <_io.BufferedWriter name='<stdout>'>
+Traceback (most recent call last):
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 557, in run
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\logger.py", line 20, in info
+    self.log(msg, "INFO")
+    ~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\logger.py", line 15, in log
+    print(line)
+    ~~~~~^^^^^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\trader.py", line 51, in _shutdown_handler
+    logger.info(f"Received shutdown signal. Closing {len(self.open_trades)} open trades...")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\logger.py", line 20, in info
+    self.log(msg, "INFO")
+    ~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\azalyst\logger.py", line 15, in log
+    print(line)
+    ~~~~~^^^^^^
+RuntimeError: reentrant call inside <_io.BufferedWriter name='<stdout>'>
+
+[2026-04-10 17:10:37 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 17:10:41 UTC] [INFO] Operating in Signal-Only Mode (No API keys required, no real trades).
+[2026-04-10 17:10:41 UTC] [INFO] Using Binance Public Data (Paper Trading)
+[2026-04-10 17:10:41 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 17:10:41 UTC] [INFO] ================================================================================
+[2026-04-10 17:10:41 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 17:10:41 UTC] [INFO] ================================================================================
+[2026-04-10 17:10:41 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 17:10:41 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 17:10:41 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 17:10:41 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 17:10:41 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 17:10:41 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 17:10:41 UTC] [INFO] ================================================================================
+[2026-04-10 17:10:41 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 17:10:43 UTC] [INFO] Found 1004 active USDT pairs. Fetching volume data...
+[2026-04-10 17:10:44 UTC] [INFO] Selected top 30 symbols:
+[2026-04-10 17:10:44 UTC] [INFO]   - BTC/USDT:USDT
+[2026-04-10 17:10:44 UTC] [INFO]   - ETH/USDT:USDT
+[2026-04-10 17:10:44 UTC] [INFO]   - RAVE/USDT:USDT
+[2026-04-10 17:10:44 UTC] [INFO]   - SOL/USDT:USDT
+[2026-04-10 17:10:44 UTC] [INFO]   - ZEC/USDT:USDT
+[2026-04-10 17:10:44 UTC] [INFO]   ... and 25 more
+[2026-04-10 17:10:44 UTC] [INFO] Initialization complete. Scanning 30 symbols...
+[2026-04-10 17:10:45 UTC] [INFO] 
+Starting live trading loop...
+[2026-04-10 17:10:45 UTC] [INFO] Press Ctrl+C to stop
+
+[2026-04-10 17:10:45 UTC] [INFO] Scanning 30 symbols... (0/20 open)
+[2026-04-10 17:10:50 UTC] [INFO] Balance: $10000.00 | Open: 0 | Closed: 0 | Daily PnL: $+0.00
+[2026-04-10 17:10:50 UTC] [INFO] Next scan in 30 minutes...
+[2026-04-10 17:14:43 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:14:50 UTC] [INFO] Trading loop stopped. Closing all open trades...
+[2026-04-10 17:14:50 UTC] [INFO] All trades closed. Saving final state...
+[2026-04-10 17:14:50 UTC] [INFO] 
+================================================================================
+[2026-04-10 17:14:50 UTC] [INFO] FINAL TRADING REPORT
+[2026-04-10 17:14:50 UTC] [INFO] ================================================================================
+[2026-04-10 17:14:50 UTC] [INFO] Initial Balance: $10000.00
+[2026-04-10 17:14:50 UTC] [INFO] Final Balance:   $10000.00
+[2026-04-10 17:14:50 UTC] [INFO] Total PnL:       $+0.00 (+0.00%)
+[2026-04-10 17:14:50 UTC] [INFO] Total Trades:    0
+[2026-04-10 17:14:50 UTC] [INFO] Winning:         0
+[2026-04-10 17:14:50 UTC] [INFO] Losing:          0
+[2026-04-10 17:14:50 UTC] [INFO] Open Trades:     0
+[2026-04-10 17:14:50 UTC] [INFO] ================================================================================
+[2026-04-10 17:14:50 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 17:15:08 UTC] [INFO] Operating in Signal-Only Mode (No API keys required, no real trades).
+[2026-04-10 17:15:08 UTC] [INFO] Using Binance Public Data (Paper Trading)
+[2026-04-10 17:15:08 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 17:15:08 UTC] [INFO] ================================================================================
+[2026-04-10 17:15:08 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 17:15:08 UTC] [INFO] ================================================================================
+[2026-04-10 17:15:08 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 17:15:08 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 17:15:08 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 17:15:08 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 17:15:08 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 17:15:08 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 17:15:08 UTC] [INFO] ================================================================================
+[2026-04-10 17:15:08 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 17:15:35 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 17:15:39 UTC] [INFO] Operating in Signal-Only Mode (No API keys required, no real trades).
+[2026-04-10 17:15:39 UTC] [INFO] Using Binance Public Data (Paper Trading)
+[2026-04-10 17:15:40 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 17:15:40 UTC] [INFO] ================================================================================
+[2026-04-10 17:15:40 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 17:15:40 UTC] [INFO] ================================================================================
+[2026-04-10 17:15:40 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 17:15:40 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 17:15:40 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 17:15:40 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 17:15:40 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 17:15:40 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 17:15:40 UTC] [INFO] ================================================================================
+[2026-04-10 17:15:40 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 17:15:43 UTC] [INFO] Found 1004 active USDT pairs. Fetching volume data...
+[2026-04-10 17:15:43 UTC] [INFO] Selected top 30 symbols:
+[2026-04-10 17:15:43 UTC] [INFO]   - BTC/USDT:USDT
+[2026-04-10 17:15:43 UTC] [INFO]   - ETH/USDT:USDT
+[2026-04-10 17:15:43 UTC] [INFO]   - RAVE/USDT:USDT
+[2026-04-10 17:15:43 UTC] [INFO]   - SOL/USDT:USDT
+[2026-04-10 17:15:43 UTC] [INFO]   - ZEC/USDT:USDT
+[2026-04-10 17:15:43 UTC] [INFO]   ... and 25 more
+[2026-04-10 17:15:43 UTC] [INFO] Initialization complete. Scanning 30 symbols...
+[2026-04-10 17:15:43 UTC] [INFO] 
+Starting live trading loop...
+[2026-04-10 17:15:43 UTC] [INFO] Press Ctrl+C to stop
+
+[2026-04-10 17:15:43 UTC] [INFO] Scanning 30 symbols... (0/20 open)
+[2026-04-10 17:15:45 UTC] [TRADE] DRY RUN OPEN: ZEC/USDT:USDT SHORT @ $372.7227 | SL: $378.4760 | TP: $358.3396 | Qty: 13.4148
+[2026-04-10 17:15:47 UTC] [TRADE] DRY RUN OPEN: ARIA/USDT:USDT LONG @ $0.5502 | SL: $0.5337 | TP: $0.5914 | Qty: 9088.3477
+[2026-04-10 17:15:49 UTC] [TRADE] DRY RUN OPEN: SIREN/USDT:USDT LONG @ $0.6972 | SL: $0.6806 | TP: $0.7386 | Qty: 7171.5463
+[2026-04-10 17:15:51 UTC] [TRADE] DRY RUN OPEN: BULLA/USDT:USDT SHORT @ $0.0079 | SL: $0.0082 | TP: $0.0073 | Qty: 630262.1691
+[2026-04-10 17:15:53 UTC] [TRADE] DRY RUN OPEN: ENA/USDT:USDT LONG @ $0.0967 | SL: $0.0955 | TP: $0.0998 | Qty: 51701.1381
+[2026-04-10 17:15:56 UTC] [TRADE] ❌ CLOSED: ZEC/USDT:USDT | PnL: -1.54% ($-77.18) | Reason: STOP_LOSS
+[2026-04-10 17:15:57 UTC] [TRADE] ❌ CLOSED: ARIA/USDT:USDT | PnL: -3.00% ($-148.84) | Reason: STOP_LOSS
+[2026-04-10 17:15:58 UTC] [TRADE] ❌ CLOSED: SIREN/USDT:USDT | PnL: -2.38% ($-116.16) | Reason: STOP_LOSS
+[2026-04-10 17:16:00 UTC] [TRADE] ❌ CLOSED: BULLA/USDT:USDT | PnL: -3.00% ($-144.87) | Reason: STOP_LOSS
+[2026-04-10 17:16:01 UTC] [TRADE] ❌ CLOSED: ENA/USDT:USDT | PnL: -1.30% ($-61.65) | Reason: STOP_LOSS
+[2026-04-10 17:16:01 UTC] [INFO] Balance: $9451.31 | Open: 0 | Closed: 5 | Daily PnL: $-548.69
+[2026-04-10 17:16:01 UTC] [INFO] Next scan in 30 minutes...
+[2026-04-10 17:17:50 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:17:51 UTC] [INFO] Trading loop stopped. Closing all open trades...
+[2026-04-10 17:17:51 UTC] [INFO] All trades closed. Saving final state...
+[2026-04-10 17:17:51 UTC] [INFO] 
+================================================================================
+[2026-04-10 17:17:51 UTC] [INFO] FINAL TRADING REPORT
+[2026-04-10 17:17:51 UTC] [INFO] ================================================================================
+[2026-04-10 17:17:51 UTC] [INFO] Initial Balance: $10000.00
+[2026-04-10 17:17:51 UTC] [INFO] Final Balance:   $9451.31
+[2026-04-10 17:17:51 UTC] [INFO] Total PnL:       $-548.69 (-5.49%)
+[2026-04-10 17:17:51 UTC] [INFO] Total Trades:    5
+[2026-04-10 17:17:51 UTC] [INFO] Winning:         0
+[2026-04-10 17:17:51 UTC] [INFO] Losing:          5
+[2026-04-10 17:17:51 UTC] [INFO] Win Rate:        0.0%
+[2026-04-10 17:17:51 UTC] [INFO] Open Trades:     0
+[2026-04-10 17:17:51 UTC] [INFO] ================================================================================
+[2026-04-10 17:17:51 UTC] [INFO] Live trader shutdown complete
+[2026-04-10 17:21:31 UTC] [INFO] Operating in Signal-Only Mode (No API keys required, no real trades).
+[2026-04-10 17:21:31 UTC] [INFO] Using Binance Public Data (Paper Trading)
+[2026-04-10 17:21:31 UTC] [INFO] Loaded 5 open trades from C:\Users\mayur\OneDrive\Desktop\Azalyst_Live_Trader\data\live_trades.csv
+[2026-04-10 17:21:32 UTC] [INFO] Dashboard running at http://localhost:8080
+[2026-04-10 17:21:32 UTC] [INFO] ================================================================================
+[2026-04-10 17:21:32 UTC] [INFO] AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER
+[2026-04-10 17:21:32 UTC] [INFO] ================================================================================
+[2026-04-10 17:21:32 UTC] [INFO] Mode: DRY RUN (Paper Trading)
+[2026-04-10 17:21:32 UTC] [INFO] Leverage: 5x | Risk/Trade: 10.0%
+[2026-04-10 17:21:32 UTC] [INFO] Max DD: 50.0% | Daily Loss: 25.0%
+[2026-04-10 17:21:32 UTC] [INFO] Max Open Trades: 20
+[2026-04-10 17:21:32 UTC] [INFO] Scan Interval: 30 min
+[2026-04-10 17:21:32 UTC] [INFO] Candle TF: 15 min
+[2026-04-10 17:21:32 UTC] [INFO] ================================================================================
+[2026-04-10 17:21:32 UTC] [INFO] Loading markets from Binance...
+[2026-04-10 17:21:33 UTC] [INFO] Found 1004 active USDT pairs. Fetching volume data...
+[2026-04-10 17:21:35 UTC] [INFO] Selected top 30 symbols:
+[2026-04-10 17:21:35 UTC] [INFO]   - BTC/USDT:USDT
+[2026-04-10 17:21:35 UTC] [INFO]   - ETH/USDT:USDT
+[2026-04-10 17:21:35 UTC] [INFO]   - RAVE/USDT:USDT
+[2026-04-10 17:21:35 UTC] [INFO]   - SOL/USDT:USDT
+[2026-04-10 17:21:35 UTC] [INFO]   - ZEC/USDT:USDT
+[2026-04-10 17:21:35 UTC] [INFO]   ... and 25 more
+[2026-04-10 17:21:35 UTC] [INFO] Initialization complete. Scanning 30 symbols...
+[2026-04-10 17:21:35 UTC] [INFO] 
+Starting live trading loop...
+[2026-04-10 17:21:35 UTC] [INFO] Press Ctrl+C to stop
+
+[2026-04-10 17:21:35 UTC] [INFO] Scanning 30 symbols... (5/20 open)
+[2026-04-10 17:21:35 UTC] [TRADE] DRY RUN OPEN: BTC/USDT:USDT LONG @ $72854.8848 | SL: $72126.3359 | TP: $74676.2569 | Qty: 0.0686
+[2026-04-10 17:21:38 UTC] [TRADE] DRY RUN OPEN: XAG/USDT:USDT LONG @ $76.3976 | SL: $75.6337 | TP: $78.3076 | Qty: 65.4470
+[2026-04-10 17:21:39 UTC] [TRADE] DRY RUN OPEN: XAU/USDT:USDT LONG @ $4767.3467 | SL: $4719.6732 | TP: $4886.5304 | Qty: 1.0488
+[2026-04-10 17:21:41 UTC] [TRADE] DRY RUN OPEN: DASH/USDT:USDT LONG @ $43.8544 | SL: $42.5388 | TP: $47.1435 | Qty: 114.0137
+[2026-04-10 17:21:46 UTC] [TRADE] ❌ CLOSED: ZEC/USDT:USDT | PnL: -1.54% ($-77.18) | Reason: STOP_LOSS
+[2026-04-10 17:21:46 UTC] [TRADE] ❌ CLOSED: ARIA/USDT:USDT | PnL: -3.00% ($-148.84) | Reason: STOP_LOSS
+[2026-04-10 17:21:48 UTC] [TRADE] ❌ CLOSED: SIREN/USDT:USDT | PnL: -2.38% ($-116.16) | Reason: STOP_LOSS
+[2026-04-10 17:21:48 UTC] [TRADE] ❌ CLOSED: BULLA/USDT:USDT | PnL: -3.00% ($-144.87) | Reason: STOP_LOSS
+[2026-04-10 17:21:49 UTC] [TRADE] ❌ CLOSED: ENA/USDT:USDT | PnL: -1.30% ($-61.65) | Reason: STOP_LOSS
+[2026-04-10 17:21:49 UTC] [TRADE] ❌ CLOSED: BTC/USDT:USDT | PnL: -1.00% ($-47.26) | Reason: STOP_LOSS
+[2026-04-10 17:21:50 UTC] [TRADE] ❌ CLOSED: XAG/USDT:USDT | PnL: -1.00% ($-47.02) | Reason: STOP_LOSS
+[2026-04-10 17:21:51 UTC] [TRADE] ❌ CLOSED: DASH/USDT:USDT | PnL: -3.00% ($-140.36) | Reason: STOP_LOSS
+[2026-04-10 17:21:51 UTC] [INFO] Balance: $9216.68 | Open: 1 | Closed: 13 | Daily PnL: $-783.32
+[2026-04-10 17:21:51 UTC] [INFO]   XAU/USDT:USDT: LONG | PnL: +0.63% | Scans: 1/24
+[2026-04-10 17:21:51 UTC] [INFO] Next scan in 30 minutes...
+[2026-04-10 17:25:13 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:16 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:16 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:19 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:19 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:19 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:19 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:19 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:20 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:20 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:20 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:21 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:21 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:21 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:21 UTC] [INFO] Trading loop stopped. Closing all open trades...
+[2026-04-10 17:25:21 UTC] [INFO] Received shutdown signal. Closing 1 open trades...
+[2026-04-10 17:25:21 UTC] [TRADE] ❌ CLOSED: XAU/USDT:USDT | PnL: -0.06% ($-2.66) | Reason: MANUAL_STOP
+[2026-04-10 17:25:22 UTC] [INFO] Received shutdown signal. Closing 0 open trades...
+[2026-04-10 17:25:22 UTC] [INFO] All trades closed. Saving final state...
+[2026-04-10 17:25:22 UTC] [INFO] 
+================================================================================
+[2026-04-10 17:25:22 UTC] [INFO] FINAL TRADING REPORT
+[2026-04-10 17:25:22 UTC] [INFO] ================================================================================
+[2026-04-10 17:25:22 UTC] [INFO] Initial Balance: $10000.00
+[2026-04-10 17:25:22 UTC] [INFO] Final Balance:   $9214.01
+[2026-04-10 17:25:22 UTC] [INFO] Total PnL:       $-785.99 (-7.86%)
+[2026-04-10 17:25:22 UTC] [INFO] Total Trades:    14
+[2026-04-10 17:25:22 UTC] [INFO] Winning:         0
+[2026-04-10 17:25:22 UTC] [INFO] Losing:          14
+[2026-04-10 17:25:22 UTC] [INFO] Win Rate:        0.0%
+[2026-04-10 17:25:22 UTC] [INFO] Open Trades:     0
+[2026-04-10 17:25:22 UTC] [INFO] ================================================================================
+[2026-04-10 17:25:22 UTC] [INFO] Live trader shutdown complete
