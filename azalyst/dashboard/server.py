@@ -22,6 +22,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/trst_ping")
+def trst_ping():
+    return jsonify({"status": "healthy", "message": "pong"})
+
+
 @app.route("/api/status")
 def api_status():
     if _trader_instance is None:
