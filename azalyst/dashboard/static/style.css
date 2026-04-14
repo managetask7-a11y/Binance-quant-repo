@@ -842,31 +842,31 @@ tr:hover td {
 
 /* ─── Calendar Modal Extensions ─── */
 .calendar-card {
-    width: 650px;
+    width: 460px;
 }
 .calendar-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 12px;
+    margin-bottom: 20px;
 }
 .cal-stat {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 14px;
+    padding: 10px;
     text-align: center;
 }
 .cal-stat span {
-    font-size: 0.72rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.8px;
     font-weight: 600;
 }
 .cal-stat h4 {
-    margin-top: 6px;
-    font-size: 1.4rem;
+    margin-top: 4px;
+    font-size: 1.15rem;
     font-family: var(--font-mono);
     font-weight: 700;
 }
@@ -876,22 +876,22 @@ tr:hover td {
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
+    gap: 6px;
 }
 .cal-day-label {
     text-align: center;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
     font-weight: 700;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 .cal-day {
     aspect-ratio: 1;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 6px;
+    padding: 4px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -907,14 +907,14 @@ tr:hover td {
 }
 .cal-day .date-num {
     position: absolute;
-    top: 4px; left: 6px;
-    font-size: 0.65rem;
+    top: 3px; left: 4px;
+    font-size: 0.6rem;
     color: var(--text-muted);
     font-family: var(--font-mono);
 }
 .cal-day .day-pnl {
     font-family: var(--font-mono);
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     font-weight: 600;
 }
 .cal-day.win {

@@ -12,9 +12,9 @@ DATABASE_FILE = DATA_DIR / "trader.db"
 
 INITIAL_BALANCE = 100.0
 LEVERAGE = 10
-RISK_PER_TRADE = 0.01  # Risk exactly 1% of balance per trade ($1 on $100 balance)
+RISK_PER_TRADE = 0.10
 ATR_MULT = 1.2
-TP_RR_RATIO = 3.0      # Take Profit is 3x the Stop Loss distance (Earn $3 for every $1 risked)
+TP_RR_RATIO = 1.5
 SL_MIN_PCT = 0.01
 SL_MAX_PCT = 0.05
 MAX_OPEN_TRADES = 10

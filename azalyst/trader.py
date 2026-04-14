@@ -429,6 +429,9 @@ class LiveTrader:
         else:
             fill_price = price * (1 - slippage_pct)
 
+        risk_usd = self.balance * RISK_PER_TRADE * LEVERAGE
+        qty = risk_usd / fill_price
+
         sl_dist = max(min(ATR_MULT * atr, fill_price * SL_MAX_PCT), fill_price * SL_MIN_PCT)
         if direction == BUY:
             sl_price = fill_price - sl_dist
@@ -436,13 +439,6 @@ class LiveTrader:
         else:
             sl_price = fill_price + sl_dist
             tp_price = fill_price - sl_dist * TP_RR_RATIO
-
-        # ─── Fixed Dollar Risk Position Sizing ───
-        # Risk amount in dollars (e.g. $100 balance * 1% risk = $1.00 exact risk)
-        target_loss_usd = self.balance * RISK_PER_TRADE
-        
-        # Quantity to buy so that if SL hits, we lose exactly `target_loss_usd`
-        qty = target_loss_usd / sl_dist
 
         # Calculate SL distance as % of entry - used for dynamic trailing trigger
         sl_dist_pct = sl_dist / fill_price * 100
