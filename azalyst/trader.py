@@ -568,6 +568,7 @@ class LiveTrader:
                                 f"📈 Trailing {symbol} SL → ${new_sl:.4f} "
                                 f"(PnL: {pnl_pct:+.2f}% | Trigger: {trail_trigger_pct:.2f}%)"
                             )
+                            self._save_trade(trade, "open")
                     else:
                         new_sl = current_price + trail_dist
                         # Ensure SL is at most at entry (never go above breakeven for shorts)
@@ -578,6 +579,7 @@ class LiveTrader:
                                 f"📈 Trailing {symbol} SL → ${new_sl:.4f} "
                                 f"(PnL: {pnl_pct:+.2f}% | Trigger: {trail_trigger_pct:.2f}%)"
                             )
+                            self._save_trade(trade, "open")
 
             if not closed and trade["scan_count"] >= MAX_HOLD_SCANS:
                 exit_price = current_price
