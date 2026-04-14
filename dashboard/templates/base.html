@@ -33,9 +33,27 @@
 </head>
 <body class="bg-surface-900 text-gray-200 min-h-screen antialiased font-sans overflow-x-hidden">
     <div class="bg-gradient-radial pointer-events-none fixed inset-0 z-0"></div>
+    <div id="toast-container"></div>
     <div class="relative z-10 max-w-[1520px] mx-auto px-6 pb-6">
         {% block content %}{% endblock %}
     </div>
+    <script>
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
+            toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

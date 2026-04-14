@@ -67,7 +67,13 @@ def signup():
 
     client = db.get_client()
     try:
-        response = client.auth.sign_up({"email": email, "password": password})
+        # Use current host URL for redirection to handle localhost vs production (Render)
+        redirect_to = request.host_url.rstrip('/') + url_for('pages.index')
+        response = client.auth.sign_up({
+            "email": email, 
+            "password": password,
+            "options": {"email_redirect_to": redirect_to}
+        })
         if response.user:
             # Supabase might demand email confirmation depending on settings. 
             # If confirmed immediately or if confirmation is disabled, session works.

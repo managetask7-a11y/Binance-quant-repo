@@ -52,7 +52,6 @@
                 </div>
                 {% endif %}
                 
-                <p id="authMessage" class="text-xs text-center hidden"></p>
 
                 <button type="submit" id="submitBtn"
                     class="w-full py-3.5 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 bg-gradient-to-r from-accent-purple to-accent-blue text-white hover:shadow-[0_6px_24px_rgba(139,92,246,0.3)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -95,8 +94,7 @@ document.getElementById('authForm').addEventListener('submit', async function(e)
     if (mode === 'signup') {
         const confirmPassword = document.getElementById('confirmPasswordInput').value;
         if (password !== confirmPassword) {
-            msgEl.textContent = 'Passwords do not match.';
-            msgEl.className = 'text-xs text-center text-loss block mt-4';
+            showToast('Passwords do not match.', 'error');
             return;
         }
     }
@@ -117,20 +115,17 @@ document.getElementById('authForm').addEventListener('submit', async function(e)
         const data = await response.json();
         
         if (data.success) {
-            msgEl.textContent = data.message || (mode === 'signup' ? 'Signup successful!' : 'Login successful!');
-            msgEl.className = 'text-xs text-center text-profit block mt-4';
+            showToast(data.message || (mode === 'signup' ? 'Signup successful!' : 'Login successful!'), 'success');
             if (mode === 'login' || (mode === 'signup' && !data.message.includes('email'))) {
                 setTimeout(() => { window.location.href = '/'; }, 1000);
             }
         } else {
-            msgEl.textContent = data.error || 'An error occurred';
-            msgEl.className = 'text-xs text-center text-loss block mt-4';
+            showToast(data.error || 'An error occurred', 'error');
             submitBtn.disabled = false;
             submitBtn.textContent = (mode === 'signup' ? 'Sign Up' : 'Login');
         }
     } catch (err) {
-        msgEl.textContent = 'A network error occurred. Please try again.';
-        msgEl.className = 'text-xs text-center text-loss block mt-4';
+        showToast('A network error occurred. Please try again.', 'error');
         submitBtn.disabled = false;
         submitBtn.textContent = (mode === 'signup' ? 'Sign Up' : 'Login');
     }
