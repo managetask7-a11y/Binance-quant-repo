@@ -89,7 +89,6 @@ document.getElementById('authForm').addEventListener('submit', async function(e)
     const email = document.getElementById('emailInput').value;
     const password = document.getElementById('passwordInput').value;
     const submitBtn = document.getElementById('submitBtn');
-    const msgEl = document.getElementById('authMessage');
     
     if (mode === 'signup') {
         const confirmPassword = document.getElementById('confirmPasswordInput').value;
@@ -101,7 +100,6 @@ document.getElementById('authForm').addEventListener('submit', async function(e)
     
     submitBtn.disabled = true;
     submitBtn.textContent = 'Please wait...';
-    msgEl.classList.add('hidden');
     
     const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login';
     
