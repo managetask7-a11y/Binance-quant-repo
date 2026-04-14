@@ -275,12 +275,13 @@
         tbody.innerHTML = trades.map(function (t) {
             const sideClass = t.direction === "LONG" ? "side-long" : "side-short";
             const pnlCls = pnlClass(t.pnl_pct);
+            const distPct = t.sl_dist_pct || 2.0; // Fallback for older trades
             const triggerPrice = t.direction === "LONG" 
-                ? t.entry_price * (1 + t.sl_dist_pct / 100) 
-                : t.entry_price * (1 - t.sl_dist_pct / 100);
+                ? t.entry_price * (1 + distPct / 100) 
+                : t.entry_price * (1 - distPct / 100);
             
             let slSubtext = "";
-            if (t.pnl_pct >= t.sl_dist_pct) {
+            if (t.pnl_pct >= distPct) {
                 slSubtext = "<div style='font-size:0.65rem; margin-top: 2px; color:var(--accent-cyan); font-weight:bold;'>⚡ Trailing Active</div>";
             } else {
                 slSubtext = "<div style='font-size:0.65rem; margin-top: 2px; color:var(--text-muted);'>Triggers @ " + formatPrice(triggerPrice) + "</div>";
