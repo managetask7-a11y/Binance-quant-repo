@@ -75,7 +75,7 @@ def fetch_open_trades(user_id: str) -> list:
 
 def fetch_closed_trades(user_id: str) -> list:
     client = get_client()
-    result = client.table("trades").select("*").eq("status", "closed").eq("user_id", user_id).order("exit_time", desc=True).execute()
+    result = client.table("trades").select("*").eq("status", "closed").eq("user_id", user_id).order("exit_time", desc=False).execute()
     return result.data or []
 
 

@@ -176,6 +176,17 @@
         cancelBtn.addEventListener("click", closeModal);
         overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
 
+        var defaultBtn = $("useDefaultConfig");
+        if (defaultBtn) {
+            defaultBtn.addEventListener("click", function(e) {
+                e.preventDefault();
+                $("cfgTpRatio").value = "1.8";
+                $("cfgAtrMult").value = "1.2";
+                $("cfgRisk").value = "0.10";
+                $("cfgLeverage").value = "10";
+            });
+        }
+
         saveBtn.addEventListener("click", async function () {
             var payload = {
                 tp_rr_ratio: $("cfgTpRatio").value,

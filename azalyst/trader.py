@@ -93,8 +93,12 @@ class LiveTrader:
 
             closed_rows = db.fetch_closed_trades(self.user_id)
             self.closed_trades = closed_rows
+            
+            # Recalculate historical balance
+            historical_pnl = sum(float(row.get("pnl_usd", 0.0)) for row in self.closed_trades)
+            self.balance = self.initial_balance + historical_pnl
 
-            logger.info(f"Loaded {len(self.open_trades)} open trades from Supabase for user {self.user_id}")
+            logger.info(f"Loaded {len(self.open_trades)} open trades and restored balance to ${self.balance:.2f} for user {self.user_id}")
         except Exception as e:
             logger.error(f"Failed to load state: {e}")
 
