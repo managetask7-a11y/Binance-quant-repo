@@ -90,6 +90,16 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df["momentum_9"] = df["close"].diff(9)
 
+    # Bollinger Band Width (Regime Detector)
+    df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / df["bb_mid"].replace(0.0, float("nan"))
+
+    # Stochastic RSI (Range Timing)
+    # Uses 14-period RSI as the base
+    rsi_min = df["rsi_14"].rolling(14).min()
+    rsi_max = df["rsi_14"].rolling(14).max()
+    df["stoch_rsi_k"] = (df["rsi_14"] - rsi_min) / (rsi_max - rsi_min).replace(0.0, 1e-8)
+    df["stoch_rsi_d"] = df["stoch_rsi_k"].rolling(3).mean()
+
     # CVD (Cumulative Volume Delta) approximation
     range_hl = (df["high"] - df["low"]).replace(0.0, 1e-8)
     buy_vol = df["volume"] * (df["close"] - df["low"]) / range_hl

@@ -31,7 +31,7 @@ TAKER_FEE = 0.0004
 SLIPPAGE_BPS = 1.0
 
 MIN_AGREEMENT = 2
-WEIGHTED_THRESHOLD = 4.0       # 'Institutional Surgeon' barrier
+WEIGHTED_THRESHOLD = 2.8       # 'Profitable Volume' setting
 
 BUY = 1
 SELL = -1
@@ -40,17 +40,17 @@ HOLD = 0
 MULTI_WEIGHTS = {
     "bnf": 0.5,
     "nbb": 1.5,
-    "kane": 0.3,            # NERFED - Confirmation only
-    "umar": 2.0,            # WINNER - Core Power
+    "kane": 0.8,
+    "umar": 1.5,             # WINNER (75% Winrate) - Boost
     "zamco": 0.5,
     "jadecap": 0.5,
-    "marci": 1.5,            # WINNER - Core Power
-    "fvg": 1.5,
+    "marci": 1.2,
+    "fvg": 1.8,              # WINNER (66% Winrate) - Boost
     "ote": 1.0,
-    "cvd_divergence": 0.3,  # NERFED - Confirmation only
-    "wyckoff": 0.3,         # NERFED - Confirmation only
-    "cbg": 0.3,             # NERFED - Confirmation only
-    "bb_trend": 2.5,        # WINNER - Core Power
+    "cvd_divergence": 0.5,
+    "wyckoff": 1.5,
+    "cbg": 1.2,
+    "bb_trend": 2.0,         # WINNER (75% Winrate) - Boost
 }
 
 HTF_TIMEFRAME = "4h"
@@ -69,4 +69,4 @@ EXCLUDE_SYMBOLS = {
     "DAIUSDT", "BUSDUSDT", "PAXGUSDT", "USDDUSDT",
 }
 MIN_VOLUME_MA = 75_000
-TOP_N_COINS = 100
+TOP_N_COINS = 15

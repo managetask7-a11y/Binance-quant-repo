@@ -11,18 +11,15 @@ def get_htf_trend(htf_df: pd.DataFrame) -> int:
     last = htf_df.iloc[-1]
     
     # Needs ema_50 and ema_200 precalculated on the htf_df
-    if "ema_200" not in htf_df.columns or "ema_50" not in htf_df.columns or "adx" not in htf_df.columns:
-        return 0
+    if "ema_200" not in htf_df.columns or "ema_50" not in htf_df.columns:
+        # Calculate them if they're missing
+        ema_50 = htf_df["close"].ewm(span=50, adjust=False).mean().iloc[-1]
+        ema_200 = htf_df["close"].ewm(span=200, adjust=False).mean().iloc[-1]
+    else:
+        ema_50 = last["ema_50"]
+        ema_200 = last["ema_200"]
 
-    ema_50 = last["ema_50"]
-    ema_200 = last["ema_200"]
-    htf_adx = last["adx"]
     price = last["close"]
-
-    # ── Macro Chop Filter ──
-    # If the 4H ADX is below 20, the macro market has no trend.
-    if htf_adx < 20:
-        return 0
 
     if price > ema_200 and ema_50 > ema_200:
         return 1

@@ -13,29 +13,33 @@ def signal(df: pd.DataFrame) -> int:
     # ── Global Armor Filter ──
     ema_200 = last.get("ema_200", last["close"])
     vol_ma = last.get("vol_ma_20", 0)
-    high_conviction_vol = last["volume"] > vol_ma * 1.5 if vol_ma > 0 else True
+    # Mean reversion requires extreme institutional volume exhaustion
+    high_conviction_vol = last["volume"] > vol_ma * 2.0 if vol_ma > 0 else True
 
-    # ── RSI Rejection Rule ──
-    if last["rsi_9"] < 30: # More oversold for higher conviction
-        # Must be touching the band
+    # ── Stochastic RSI Confluence (Range Reversals) ──
+    # Oversold: < 0.2, Overbought: > 0.8
+    stoch_k = last.get("stoch_rsi_k", 0.5)
+    stoch_d = last.get("stoch_rsi_d", 0.5)
+
+    # ── Range Hunter Logic (Buy Low, Sell High) ──
+    if stoch_k < 0.2 and stoch_d < 0.2: 
+        # Price must pierce the band
         at_bb_lower = last["low"] <= last["bb_lower"]
         below_vwap = last["close"] < last.get("vwap", last["close"])
-        above_ema200 = last["close"] > ema_200
         
-        # Bullish Rejection candle (e.g. Hammer or recovery)
-        rejection = last["close"] > last["open"] or last["close"] > prev["close"]
+        # Wick Rejection confirm: Close > Middle of candle range
+        wick_rejection = (last["close"] - last["low"]) > (last["high"] - last["close"])
 
-        if at_bb_lower and below_vwap and above_ema200 and rejection and high_conviction_vol:
+        if at_bb_lower and below_vwap and wick_rejection and high_conviction_vol:
             return BUY
 
-    if last["rsi_9"] > 70: # More overbought
+    if stoch_k > 0.8 and stoch_d > 0.8:
         at_bb_upper = last["high"] >= last["bb_upper"]
         above_vwap = last["close"] > last.get("vwap", last["close"])
-        below_ema200 = last["close"] < ema_200
         
-        rejection = last["close"] < last["open"] or last["close"] < prev["close"]
+        wick_rejection = (last["high"] - last["close"]) > (last["close"] - last["low"])
 
-        if at_bb_upper and above_vwap and below_ema200 and rejection and high_conviction_vol:
+        if at_bb_upper and above_vwap and wick_rejection and high_conviction_vol:
             return SELL
 
     return HOLD

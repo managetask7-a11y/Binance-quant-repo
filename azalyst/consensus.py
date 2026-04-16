@@ -19,28 +19,23 @@ def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
     last = df.iloc[-1]
 
     # ── 1. ADX Trending Market Gate ──
-    # Only trade when there's definitive trend momentum (ADX > 20).
+    # Only trade when there's some trend (ADX > 15).
+    # Very low ADX = pure chop where everything whipsaws.
     adx = last.get("adx", 0)
-    if not np.isnan(adx) and adx < 20:
+    if not np.isnan(adx) and adx < 15:
         return False
 
-    # ── 2. Global Volume Displacement Armor ──
-    # Institutional moves require massive volume relative to the noise.
+    # ── 2. Volume Confirmation ──
+    # Current bar volume should be reasonable (>= 80% of average).
+    # Blocks ghost moves on zero volume.
     vol = last.get("volume", 0)
     vol_ma = last.get("vol_ma_20", 0)
-    if vol_ma > 0 and vol < vol_ma * 1.5:
+    if vol_ma > 0 and vol < vol_ma * 0.8:
         return False
 
-    # ── 3. Candle Conviction (Anti-Wick Gate) ──
-    # Longs must close in the top 15% of the range.
-    # Shorts must close in the bottom 15% of the range.
-    conviction = last.get("conviction", 0.5)
-    if direction == BUY and conviction < 0.85:
-        return False
-    if direction == SELL and conviction > 0.15:
-        return False
-
-    # ── 4. RSI Zone Guard ──
+    # ── 3. RSI Zone Guard ──
+    # Don't buy into overbought (RSI > 70) or sell into oversold (RSI < 30).
+    # These are exhaustion zones where reversals are likely.
     rsi = last.get("rsi_14", 50)
     if not np.isnan(rsi):
         if direction == BUY and rsi > 70:
@@ -59,6 +54,12 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
     if htf_df is not None and not htf_df.empty:
         htf_trend = get_htf_trend(htf_df)
 
+    last = df.iloc[-1]
+    # ── Regime Detection (BBW) ──
+    # Narrow bands = Range/Sideways, Wide bands = Trend
+    bbw = last.get("bb_width", 0.1)
+    is_range = bbw < 0.08
+
     buy_count = 0
     sell_count = 0
     buy_weight = 0.0
@@ -70,11 +71,15 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
         sig = func(df)
         weight = MULTI_WEIGHTS.get(name, 1.0)
 
-        # ── Macro Chop Protection ──
-        # If the market is completely directionless (htf_trend == 0),
-        # trend-continuation strategies will just hit fake-outs. Block them.
-        if htf_trend == 0 and name in ["umar", "bb_trend", "nbb"]:
-            continue
+        # ── Adaptive Regime Weighting ──
+        if is_range:
+            if name in ["umar", "bb_trend", "nbb"]:
+                weight *= 0.5 # Reduce momentum in ranges
+            elif name in ["bnf", "wyckoff", "kane"]:
+                weight *= 1.5 # Boost mean-reversion in ranges
+        else:
+            if name in ["umar", "bb_trend", "nbb"]:
+                weight *= 1.5 # Boost momentum in trends
 
         if sig == BUY:
             # HTF Filter: Ignore long signals if macro trend is bearish
