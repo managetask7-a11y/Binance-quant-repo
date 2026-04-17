@@ -36,11 +36,13 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["bb_upper"] = df["bb_mid"] + 2.0 * bb_std
     df["bb_lower"] = df["bb_mid"] - 2.0 * bb_std
 
-    # Bollinger Band 200 (SD 1.5) - Specifically for Trend Rejection
+    # --- Alpha-X Institutional BB (200, SD 1) ---
     df["bb200_mid"] = df["close"].rolling(200).mean()
     bb200_std = df["close"].rolling(200).std()
-    df["bb200_upper"] = df["bb200_mid"] + 1.5 * bb200_std
-    df["bb200_lower"] = df["bb200_mid"] - 1.5 * bb200_std
+    df["bb200_upper"] = df["bb200_mid"] + 1.0 * bb200_std
+    df["bb200_lower"] = df["bb200_mid"] - 1.0 * bb200_std
+    # Bandwidth for Alpha-X filter
+    df["bb200_width"] = (df["bb200_upper"] - df["bb200_lower"]) / df["bb200_mid"].replace(0.0, float("nan"))
 
     fast_ema = df["close"].ewm(span=12, adjust=False).mean()
     slow_ema = df["close"].ewm(span=26, adjust=False).mean()
@@ -85,6 +87,9 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df["vol_ma_20"] = df["volume"].rolling(20).mean()
 
+    # Institutional Swing Points (Alpha-X 60-period spec)
+    df["local_swing_high"] = df["high"].rolling(60, center=True).max()
+    df["local_swing_low"] = df["low"].rolling(60, center=True).min()
     df["swing_high"] = df["high"].rolling(5, center=True).max()
     df["swing_low"] = df["low"].rolling(5, center=True).min()
 
@@ -107,9 +112,18 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     delta = buy_vol - sell_vol
     df["cvd"] = delta.cumsum()
 
-    # Candle Conviction (normalized 0.0 to 1.0)
-    # Measures 'Body Strength' vs 'Total Range'
+    # Money Flow Index (Institutional Volume)
+    tp = (df["high"] + df["low"] + df["close"]) / 3.0
+    mf = tp * df["volume"]
+    mf_dir = np.where(tp > tp.shift(1), 1, -1)
+    pos_mf = pd.Series(np.where(mf_dir == 1, mf, 0.0), index=df.index).rolling(14).sum()
+    neg_mf = pd.Series(np.where(mf_dir == -1, mf, 0.0), index=df.index).rolling(14).sum()
+    mfr = pos_mf / neg_mf.replace(0.0, float("nan"))
+    df["mfi_14"] = 100.0 - (100.0 / (1.0 + mfr))
+
+    # Candle Conviction (Institutional Strength)
     candle_range = (df["high"] - df["low"]).replace(0.0, 1e-8)
-    df["conviction"] = (df["close"] - df["low"]) / candle_range
+    df["conviction"] = (df["close"] - df["low"]) / candle_range # 0 (bearish) to 1 (bullish)
+    df["body_ratio"] = (df["close"] - df["open"]).abs() / candle_range
 
     return df

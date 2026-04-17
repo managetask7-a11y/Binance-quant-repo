@@ -441,15 +441,42 @@ class LiveTrader:
         risk_usd = self.balance * self.config["risk_per_trade"] * self.config["leverage"]
         qty = risk_usd / fill_price
 
-        sl_dist = max(min(self.config["atr_mult"] * atr, fill_price * SL_MAX_PCT), fill_price * SL_MIN_PCT)
-        if direction == BUY:
-            sl_price = fill_price - sl_dist
-            tp_price = fill_price + sl_dist * self.config["tp_rr_ratio"]
+        # --- Alpha-X Logic (Main.py Parity) ---
+        is_alpha = "alpha_x" in sig.get("strategies", [])
+        
+        # Calculate Fib Targets
+        sh = df["local_swing_high"].iloc[-1]
+        sl_low = df["local_swing_low"].iloc[-1]
+        move = sh - sl_low
+        
+        if is_alpha:
+            # 100% SPEC PARITY: SL is the pullback candle extreme
+            # Increased buffer to 0.25% for 'Sniper' win-rate improvement
+            if direction == BUY:
+                sl_price = df["low"].iloc[-2] * 0.9975 # Sniper Buffer
+                tp_price = fill_price + move * 1.618  # Primary target
+                tp1 = fill_price + move * 1.272
+                tp2 = fill_price + move * 1.618
+            else:
+                sl_price = df["high"].iloc[-2] * 1.0025 # Sniper Buffer
+                tp_price = fill_price - move * 1.618
+                tp1 = fill_price - move * 1.272
+                tp2 = fill_price - move * 1.618
         else:
-            sl_price = fill_price + sl_dist
-            tp_price = fill_price - sl_dist * self.config["tp_rr_ratio"]
+            # Standard ATR logic for other strategies
+            sl_dist = max(min(self.config["atr_mult"] * atr, fill_price * SL_MAX_PCT), fill_price * SL_MIN_PCT)
+            if direction == BUY:
+                sl_price = fill_price - sl_dist
+                tp_price = fill_price + sl_dist * self.config["tp_rr_ratio"]
+                tp1 = tp_price
+                tp2 = None
+            else:
+                sl_price = fill_price + sl_dist
+                tp_price = fill_price - sl_dist * self.config["tp_rr_ratio"]
+                tp1 = tp_price
+                tp2 = None
 
-        sl_dist_pct = sl_dist / fill_price * 100
+        sl_dist_pct = abs(fill_price - sl_price) / fill_price * 100
 
         trade = {
             "symbol": symbol,
@@ -458,6 +485,8 @@ class LiveTrader:
             "qty": qty,
             "sl_price": sl_price,
             "tp_price": tp_price,
+            "tp1": tp1,
+            "tp2": tp2,
             "sl_dist_pct": round(sl_dist_pct, 4),
             "entry_time": datetime.now(timezone.utc).isoformat(),
             "scan_count": 0,
@@ -466,6 +495,8 @@ class LiveTrader:
             "signal": sig["signal"],
             "strategies": ", ".join(sig.get("strategies", [])),
             "atr": atr,
+            "is_alpha": is_alpha,
+            "extended": False,
         }
 
         if not self.dry_run:
@@ -529,24 +560,81 @@ class LiveTrader:
             exit_price = None
             reason = ""
 
-            if direction == BUY:
-                if current_price <= sl:
-                    exit_price = sl
-                    reason = "STOP_LOSS"
-                    closed = True
-                elif current_price >= tp:
-                    exit_price = tp
-                    reason = "TAKE_PROFIT"
-                    closed = True
-            else:
-                if current_price >= sl:
-                    exit_price = sl
-                    reason = "STOP_LOSS"
-                    closed = True
-                elif current_price <= tp:
-                    exit_price = tp
-                    reason = "TAKE_PROFIT"
-                    closed = True
+            # --- Alpha-X STATEFUL EXIT LOGIC (High Priority) ---
+            if trade.get("is_alpha"):
+                # Fetch latest candle for band levels (Parity with Main.py)
+                df_curr = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 10)
+                if not df_curr.empty:
+                    df_curr = compute_indicators(df_curr)
+                    last_candle = df_curr.iloc[-1]
+                    
+                    upper = last_candle["bb200_upper"]
+                    lower = last_candle["bb200_lower"]
+                    tol = upper * 0.0025 # TOUCH_TOL
+                    
+                    # 1. Update Extensions (Must CLOSE beyond the band to lock-in)
+                    is_extended = "|EXTENDED" in trade.get("signal", "")
+                    if not is_extended:
+                        if (direction == BUY and last_candle["close"] > upper) or \
+                           (direction == SELL and last_candle["close"] < lower):
+                            is_extended = True
+                            trade["signal"] += "|EXTENDED"
+                            logger.info(f"   [EXTEND] {symbol} locked-in beyond the band. Awaiting harvest.")
+                            self._save_trade(trade, "open")
+
+                    # 2. Check for Band-Touch Harvest (Anti-Flush Patch)
+                    if is_extended and trade["scan_count"] > 0:
+                        is_profitable = False
+                        if direction == BUY and current_price > entry:
+                            is_profitable = True
+                        elif direction == SELL and current_price < entry:
+                            is_profitable = True
+
+                        if is_profitable:
+                            if direction == BUY:
+                                # Low wicks to band AND High is at/above band level
+                                if last_candle["low"] <= upper + tol and last_candle["high"] >= upper - tol:
+                                    exit_price = current_price
+                                    reason = "Alpha-X Profit Harvest 🏦"
+                                    closed = True
+                            else:
+                                # High wicks to band AND Low is at/below band level
+                                if last_candle["high"] >= lower - tol and last_candle["low"] <= lower + tol:
+                                    exit_price = current_price
+                                    reason = "Alpha-X Profit Harvest 🏦"
+                                    closed = True
+
+            # Standard exit checks (Fallback / Fib Targets)
+            if not closed:
+                tp1 = trade.get("tp1")
+                tp2 = trade.get("tp2")
+                
+                if direction == BUY:
+                    if current_price <= sl:
+                        exit_price = sl
+                        reason = "STOP_LOSS"
+                        closed = True
+                    elif tp2 and current_price >= tp2:
+                        exit_price = current_price
+                        reason = "TAKE_PROFIT_FIB2 ✅"
+                        closed = True
+                    elif tp1 and current_price >= tp1:
+                        exit_price = current_price
+                        reason = "TAKE_PROFIT_FIB1 ✅"
+                        closed = True
+                else:
+                    if current_price >= sl:
+                        exit_price = sl
+                        reason = "STOP_LOSS"
+                        closed = True
+                    elif tp2 and current_price <= tp2:
+                        exit_price = current_price
+                        reason = "TAKE_PROFIT_FIB2 ✅"
+                        closed = True
+                    elif tp1 and current_price <= tp1:
+                        exit_price = current_price
+                        reason = "TAKE_PROFIT_FIB1 ✅"
+                        closed = True
 
             if not closed:
                 pnl_pct = (current_price - entry) / entry * 100 if direction == BUY else (entry - current_price) / entry * 100

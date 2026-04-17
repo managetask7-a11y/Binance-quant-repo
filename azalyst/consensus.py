@@ -74,12 +74,14 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
         # ── Adaptive Regime Weighting ──
         if is_range:
             if name in ["umar", "bb_trend", "nbb"]:
-                weight *= 0.5 # Reduce momentum in ranges
-            elif name in ["bnf", "wyckoff", "kane"]:
-                weight *= 1.5 # Boost mean-reversion in ranges
+                weight *= 0.5 
+            elif name in ["bnf", "wyckoff", "kane", "liquidity_hunter"]:
+                weight *= 1.5 
         else:
-            if name in ["umar", "bb_trend", "nbb"]:
-                weight *= 1.5 # Boost momentum in trends
+            if name in ["umar", "bb_trend", "nbb", "band_rider"]:
+                weight *= 1.5 
+            elif name == "alpha_x":
+                weight *= 2.0 # Boost Alpha-X during trend expansions
 
         if sig == BUY:
             # HTF Filter: Ignore long signals if macro trend is bearish

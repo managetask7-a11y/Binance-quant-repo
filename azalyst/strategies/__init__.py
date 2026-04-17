@@ -1,5 +1,5 @@
-from azalyst.strategies import zamco, bnf, jadecap, marci, nbb, umar, kane
-from azalyst.strategies import fvg, ote, cvd_divergence, wyckoff, cbg, bb_trend
+from . import zamco, bnf, jadecap, marci, nbb, umar, kane, liquidity_hunter, alpha_x
+from . import fvg, ote, cvd_divergence, wyckoff, cbg, bb_trend, band_rider
 
 MULTI_STRATEGIES = {
     "zamco": zamco.signal,
@@ -15,4 +15,7 @@ MULTI_STRATEGIES = {
     "wyckoff": wyckoff.signal,
     "cbg": cbg.signal,
     "bb_trend": bb_trend.signal,
+    "band_rider": band_rider.signal,
+    "liquidity_hunter": liquidity_hunter.signal,
+    "alpha_x": alpha_x.signal,
 }
