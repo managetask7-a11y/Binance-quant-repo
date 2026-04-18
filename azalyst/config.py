@@ -13,14 +13,14 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 INITIAL_BALANCE = 100.0
 LEVERAGE = 30
-RISK_PER_TRADE = 0.02          # 2.0 % Account Risk
+RISK_PER_TRADE = 0.02          # Restored to 2.0% for 'Big Profit' windows
 ATR_MULT = 1.4
-TP_RR_RATIO = 1.5              # Dynamic Exit (Band-Touch) takes priority
+TP_RR_RATIO = 1.5              
 SL_MIN_PCT = 0.01
 SL_MAX_PCT = 0.05
 MAX_OPEN_TRADES = 10
 MAX_HOLD_SCANS = 48
-BREAKEVEN_AFTER_SCANS = 12       
+BREAKEVEN_AFTER_SCANS = 10     # Middle ground: allows breath but protects wins
 SCAN_INTERVAL_MIN = 15          # Alpha-X 15m Scan (Binance Support)
 CANDLE_TF_MIN = 15              # Alpha-X 15m Candle (Binance Support)
 

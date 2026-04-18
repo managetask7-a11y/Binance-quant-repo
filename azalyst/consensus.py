@@ -20,6 +20,8 @@ def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
     # ── 1. TREND STRENGTH GATE ──
     # Reduced floor to 15 to capture trends early.
     adx = last.get("adx", 0)
+    adx_50 = last.get("adx_50", 0)
+    
     if not np.isnan(adx) and adx < 15:
         return False
 
@@ -66,6 +68,17 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
         weight = MULTI_WEIGHTS.get(name, 1.0)
 
         # ── Adaptive Regime Weighting ──
+        adx_val = last.get("adx", 20)
+        adx_50_val = last.get("adx_50", 20)
+        
+        # Boost during clear trends
+        if adx_val > 25:
+            weight *= 1.2
+            
+        # Penalize during directionless long-term markets
+        if adx_50_val < 10:
+            weight *= 0.5
+
         if is_range:
             if name in ["umar", "bb_trend", "nbb"]:
                 weight *= 0.5 

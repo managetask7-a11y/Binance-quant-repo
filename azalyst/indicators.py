@@ -66,6 +66,10 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["mdi"] = 100.0 * minus_dm.ewm(alpha=1.0 / 14, adjust=False).mean() / atr_smooth.replace(0.0, float("nan"))
     dx = ((df["pdi"] - df["mdi"]).abs() / (df["pdi"] + df["mdi"]).replace(0.0, float("nan"))) * 100.0
     df["adx"] = dx.ewm(alpha=1.0 / 14, adjust=False).mean()
+    
+    # --- Slow ADX (Market Sentiment) ---
+    # Used to detect long-term structural trends for 180-day stability.
+    df["adx_50"] = dx.ewm(alpha=1.0 / 50, adjust=False).mean()
 
     hl2 = (df["high"] + df["low"]) / 2.0
     upper_band = hl2 + 3.0 * df["atr_14"]
