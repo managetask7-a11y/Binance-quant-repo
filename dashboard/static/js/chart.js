@@ -4,7 +4,7 @@ function renderEquityChart(canvasId, data) {
     var emptyEl = document.getElementById("chartEmpty");
 
     if (!data || data.length === 0) {
-        if (emptyEl) emptyEl.style.display = "block";
+        if (emptyEl) emptyEl.style.display = "flex";
         return;
     }
     if (emptyEl) emptyEl.style.display = "none";
@@ -12,25 +12,28 @@ function renderEquityChart(canvasId, data) {
     var ctx = canvas.getContext("2d");
     var dpr = window.devicePixelRatio || 1;
     var rect = canvas.parentElement.getBoundingClientRect();
+    
     canvas.width = rect.width * dpr;
-    canvas.height = (rect.height - 32) * dpr;
+    canvas.height = (rect.height - 10) * dpr;
     canvas.style.width = rect.width + "px";
-    canvas.style.height = (rect.height - 32) + "px";
+    canvas.style.height = (rect.height - 10) + "px";
     ctx.scale(dpr, dpr);
 
     var w = rect.width;
-    var h = rect.height - 32;
-    var pad = { top: 20, right: 16, bottom: 30, left: 60 };
+    var h = rect.height - 10;
+    var pad = { top: 30, right: 20, bottom: 40, left: 70 };
     var chartW = w - pad.left - pad.right;
     var chartH = h - pad.top - pad.bottom;
 
-    var values = data.map(function (d) { return d.balance; });
+    var values = data.map(function (d) { return parseFloat(d.balance); });
     var rawMin = Math.min.apply(null, values);
     var rawMax = Math.max.apply(null, values);
     var rawRange = rawMax - rawMin;
-    var minPad = Math.max(rawMin * 0.002, 1);
-    var minV = rawRange < 0.01 ? rawMin - minPad : rawMin - rawRange * 0.05;
-    var maxV = rawRange < 0.01 ? rawMax + minPad : rawMax + rawRange * 0.05;
+    
+    // Improved Scaling: Ensure we always have some room to see movements
+    var padding = rawRange < 1.0 ? 5.0 : rawRange * 0.15;
+    var minV = rawMin - padding;
+    var maxV = rawMax + padding;
     var rangeV = maxV - minV || 1;
 
     function xPos(i) { return pad.left + (i / (data.length - 1 || 1)) * chartW; }
@@ -38,8 +41,10 @@ function renderEquityChart(canvasId, data) {
 
     ctx.clearRect(0, 0, w, h);
 
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    // --- Grid Lines ---
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
     for (var gi = 0; gi <= 4; gi++) {
         var gy = pad.top + (gi / 4) * chartH;
         ctx.beginPath();
@@ -48,22 +53,20 @@ function renderEquityChart(canvasId, data) {
         ctx.stroke();
 
         var gv = maxV - (gi / 4) * rangeV;
-        ctx.fillStyle = "rgba(255,255,255,0.25)";
-        ctx.font = "11px 'JetBrains Mono'";
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.font = "12px 'Inter', sans-serif";
         ctx.textAlign = "right";
-        ctx.fillText("$" + gv.toFixed(0), pad.left - 8, gy + 4);
+        ctx.fillText("$" + gv.toFixed(1), pad.left - 12, gy + 4);
     }
+    ctx.setLineDash([]);
 
+    // --- Gradient Area ---
     var grad = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
-    var lastVal = values[values.length - 1];
-    var firstVal = values[0];
-    if (lastVal >= firstVal) {
-        grad.addColorStop(0, "rgba(16,185,129,0.2)");
-        grad.addColorStop(1, "rgba(16,185,129,0)");
-    } else {
-        grad.addColorStop(0, "rgba(239,68,68,0.2)");
-        grad.addColorStop(1, "rgba(239,68,68,0)");
-    }
+    var isProfitable = values[values.length - 1] >= values[0];
+    var mainColor = isProfitable ? "#00f0ff" : "#ff4d4d"; // Cyan for profit, Red for loss
+    
+    grad.addColorStop(0, isProfitable ? "rgba(0, 240, 255, 0.15)" : "rgba(255, 77, 77, 0.15)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
 
     ctx.beginPath();
     ctx.moveTo(xPos(0), h - pad.bottom);
@@ -75,25 +78,47 @@ function renderEquityChart(canvasId, data) {
     ctx.fillStyle = grad;
     ctx.fill();
 
+    // --- Main Line Glow ---
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = mainColor;
     ctx.beginPath();
     for (var li = 0; li < data.length; li++) {
         if (li === 0) ctx.moveTo(xPos(li), yPos(values[li]));
         else ctx.lineTo(xPos(li), yPos(values[li]));
     }
-    ctx.strokeStyle = lastVal >= firstVal ? "#10b981" : "#ef4444";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = 3;
     ctx.lineJoin = "round";
     ctx.stroke();
+    ctx.shadowBlur = 0; // Reset shadow
 
+    // --- Current Point Marker ---
     var lastX = xPos(data.length - 1);
-    var lastY = yPos(lastVal);
+    var lastY = yPos(values[values.length - 1]);
+    
+    // Outer Ring
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 8, 0, Math.PI * 2);
+    ctx.fillStyle = mainColor + "33";
+    ctx.fill();
+    
+    // Inner Dot
     ctx.beginPath();
     ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
-    ctx.fillStyle = lastVal >= firstVal ? "#10b981" : "#ef4444";
+    ctx.fillStyle = "#fff";
     ctx.fill();
-    ctx.beginPath();
-    ctx.arc(lastX, lastY, 7, 0, Math.PI * 2);
-    ctx.strokeStyle = lastVal >= firstVal ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)";
+    ctx.strokeStyle = mainColor;
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // Time Labels (Start and End)
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = "10px 'Inter', sans-serif";
+    ctx.textAlign = "left";
+    var startTime = new Date(data[0].timestamp).toLocaleDateString();
+    ctx.fillText(startTime, pad.left, h - 15);
+    
+    ctx.textAlign = "right";
+    var endTime = "Now";
+    ctx.fillText(endTime, w - pad.right, h - 15);
 }

@@ -94,36 +94,52 @@ class LiveTrader:
             closed_rows = db.fetch_closed_trades(self.user_id)
             self.closed_trades = closed_rows
             
+            # Load historical equity curve for the chart
+            equity_rows = db.fetch_equity(self.user_id)
+            self.equity_curve = equity_rows
+            
             # Recalculate historical balance
             historical_pnl = sum(float(row.get("pnl_usd", 0.0)) for row in self.closed_trades)
             self.balance = self.initial_balance + historical_pnl
+            
+            # If we have equity history, use the last point's balance as current
+            if self.equity_curve:
+                self.balance = float(self.equity_curve[-1]["balance"])
 
             logger.info(f"Loaded {len(self.open_trades)} open trades and restored balance to ${self.balance:.2f} for user {self.user_id}")
         except Exception as e:
             logger.error(f"Failed to load state: {e}")
 
     def _save_trade(self, trade: dict, status: str = "open"):
-        try:
-            if status == "open" and "id" not in trade:
-                result = db.insert_trade(self.user_id, trade)
-                if result:
-                    trade["id"] = result["id"]
-            elif status == "open" and "id" in trade:
-                db.update_trade_sl(self.user_id, trade["id"], trade["sl_price"])
-            elif status == "closed" and "id" in trade:
-                db.close_trade_db(
-                    self.user_id,
-                    trade["id"],
-                    trade.get("exit_time", ""),
-                    trade.get("exit_price", 0.0),
-                    trade.get("pnl_pct", 0.0),
-                    trade.get("pnl_usd", 0.0),
-                    trade.get("reason", "")
-                )
-        except Exception as e:
-            logger.error(f"Failed to save trade: {e}")
+        """Save trade to DB with retries for network stability"""
+        for attempt in range(3):
+            try:
+                if status == "open" and "id" not in trade:
+                    result = db.insert_trade(self.user_id, trade)
+                    if result:
+                        trade["id"] = result["id"]
+                elif status == "open" and "id" in trade:
+                    db.update_trade_sl(self.user_id, trade["id"], trade["sl_price"])
+                elif status == "closed" and "id" in trade:
+                    db.close_trade_db(
+                        self.user_id,
+                        trade["id"],
+                        trade.get("exit_time", ""),
+                        trade.get("exit_price", 0.0),
+                        trade.get("pnl_pct", 0.0),
+                        trade.get("pnl_usd", 0.0),
+                        trade.get("reason", "")
+                    )
+                return # Success
+            except Exception as e:
+                if "10035" in str(e) or "non-blocking" in str(e):
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                logger.error(f"Failed to save trade (attempt {attempt+1}): {e}")
+                time.sleep(1)
 
     def _log_equity(self):
+        """Log equity point to DB with retries for network stability"""
         point = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "balance": self.balance,
@@ -132,10 +148,16 @@ class LiveTrader:
         }
         self.equity_curve.append(point)
 
-        try:
-            db.insert_equity(self.user_id, point)
-        except Exception as e:
-            logger.error(f"Failed to log equity: {e}")
+        for attempt in range(3):
+            try:
+                db.insert_equity(self.user_id, point)
+                return # Success
+            except Exception as e:
+                if "10035" in str(e) or "non-blocking" in str(e):
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                logger.error(f"Failed to log equity (attempt {attempt+1}): {e}")
+                time.sleep(1)
 
     def set_daily_profit_target(self, target: float):
         self.daily_profit_target = target
@@ -154,38 +176,43 @@ class LiveTrader:
             logger.info(f"Trader reconfigured to DRY RUN mode for user {self.user_id}")
 
     def _refresh_config(self):
-        """Fetch user-specific config from DB, fallback to defaults"""
+        """Fetch user-specific config from DB with retries for network stability"""
         if not self.user_id:
             return
-        try:
-            # We fetch all configs for this user
-            # Map common internal keys to DB keys
-            key_map = {
-                "leverage": "leverage",
-                "risk_per_trade": "risk_per_trade",
-                "atr_mult": "atr_mult",
-                "tp_rr_ratio": "tp_rr_ratio",
-                "telegram_token": "telegram_bot_token",
-                "telegram_chat_id": "telegram_chat_id"
-            }
-            for internal_key, db_key in key_map.items():
-                val = db.get_config(self.user_id, db_key, None)
-                if val is not None:
-                    # Convert types if necessary
-                    if internal_key in ["leverage"]:
-                        self.config[internal_key] = int(val)
-                    elif internal_key in ["risk_per_trade", "atr_mult", "tp_rr_ratio"]:
-                        self.config[internal_key] = float(val)
-                    else:
-                        self.config[internal_key] = str(val)
             
-            # Special case for daily target target
-            target = db.get_config(self.user_id, "daily_profit_target", None)
-            if target:
-                self.daily_profit_target = float(target)
-
-        except Exception as e:
-            logger.error(f"Failed to refresh config: {e}")
+        for attempt in range(3):
+            try:
+                # Map common internal keys to DB keys
+                key_map = {
+                    "leverage": "leverage",
+                    "risk_per_trade": "risk_per_trade",
+                    "atr_mult": "atr_mult",
+                    "tp_rr_ratio": "tp_rr_ratio",
+                    "telegram_token": "telegram_bot_token",
+                    "telegram_chat_id": "telegram_chat_id"
+                }
+                for internal_key, db_key in key_map.items():
+                    val = db.get_config(self.user_id, db_key, None)
+                    if val is not None:
+                        if internal_key in ["leverage"]:
+                            self.config[internal_key] = int(val)
+                        elif internal_key in ["risk_per_trade", "atr_mult", "tp_rr_ratio"]:
+                            self.config[internal_key] = float(val)
+                        else:
+                            self.config[internal_key] = str(val)
+                
+                # Special case for daily target
+                target = db.get_config(self.user_id, "daily_profit_target", None)
+                if target:
+                    self.daily_profit_target = float(target)
+                
+                return # Success
+            except Exception as e:
+                if "10035" in str(e) or "non-blocking" in str(e):
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                logger.error(f"Failed to refresh config (attempt {attempt+1}): {e}")
+                time.sleep(1)
         
     def get_status(self) -> dict:
         current_drawdown = (self.initial_balance - self.balance) / self.initial_balance * 100
@@ -448,13 +475,21 @@ class LiveTrader:
         last = df.iloc[-1]
         direction = sig["direction"]
         atr = sig["atr"]
-        price = last["close"]
+        fill_price = last["close"]
 
-        slippage_pct = SLIPPAGE_BPS / 10000
-        if direction == BUY:
-            fill_price = price * (1 + slippage_pct)
-        else:
-            fill_price = price * (1 - slippage_pct)
+        # --- Calculate SL/TP with NaN Protection ---
+        sl_dist = atr * self.config.get("atr_mult", ATR_MULT)
+        sl_price = fill_price - sl_dist if direction == BUY else fill_price + sl_dist
+        
+        # Use strategy TP if available, else default to RR ratio
+        tp_price = sig.get("tp_price")
+        if tp_price is None or np.isnan(tp_price):
+            tp_dist = sl_dist * self.config.get("tp_rr_ratio", TP_RR_RATIO)
+            tp_price = fill_price + tp_dist if direction == BUY else fill_price - tp_dist
+
+        # Safety: Ensure no NaN values reach DB or API
+        sl_price = float(sl_price) if not np.isnan(sl_price) else fill_price * 0.95
+        tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 1.05
 
         risk_usd = self.balance * self.config["risk_per_trade"] * self.config["leverage"]
         qty = risk_usd / fill_price
@@ -494,9 +529,22 @@ class LiveTrader:
                 tp1 = tp_price
                 tp2 = None
 
+        # --- FINAL NAN GUARD (Direction-Aware Safety) ---
+        if direction == BUY:
+            sl_price = float(sl_price) if not np.isnan(sl_price) else fill_price * 0.95
+            tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 1.10
+            tp1 = float(tp1) if not (tp1 is None or np.isnan(tp1)) else fill_price * 1.05
+            tp2 = float(tp2) if not (tp2 is None or np.isnan(tp2)) else fill_price * 1.08
+        else:
+            sl_price = float(sl_price) if not np.isnan(sl_price) else fill_price * 1.05
+            tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 0.90
+            tp1 = float(tp1) if not (tp1 is None or np.isnan(tp1)) else fill_price * 0.95
+            tp2 = float(tp2) if not (tp2 is None or np.isnan(tp2)) else fill_price * 0.92
+
         sl_dist_pct = abs(fill_price - sl_price) / fill_price * 100
 
         trade = {
+            "user_id": self.user_id,
             "symbol": symbol,
             "direction": direction,
             "entry_price": fill_price,
@@ -536,13 +584,21 @@ class LiveTrader:
         self.open_trades[symbol] = trade
         self._save_trade(trade, "open")
 
+        # Format strategies safely for notification
+        strat_list = sig.get("strategies", [])
+        strat_str = ", ".join(strat_list) if isinstance(strat_list, list) else str(strat_list)
+        
+        # Format prices to avoid 'nan' in Telegram
+        tp_display = f"${tp_price:.4f}"
+        sl_display = f"${sl_price:.4f}"
+
         send_alerts(
             f"🔔 **NEW TRADE**",
             f"**{symbol}** {'LONG' if direction == BUY else 'SHORT'}\n"
             f"Entry: ${fill_price:.4f}\n"
-            f"SL: ${sl_price:.4f} | TP: ${tp_price:.4f}\n"
+            f"SL: {sl_display} | TP: {tp_display}\n"
             f"Signal: {sig['signal']}\n"
-            f"Strategies: {', '.join(sig.get('strategies', []))}",
+            f"Strategies: {strat_str}",
             telegram_token=self.config.get("telegram_token"),
             telegram_chat_id=self.config.get("telegram_chat_id")
         )
@@ -815,7 +871,9 @@ class LiveTrader:
 
             while self.running:
                 try:
+                    # Refresh config only during the main scan to reduce network load
                     self._refresh_config()
+                    
                     now = datetime.now(timezone.utc)
                     if time.time() - self.last_symbol_refresh_time >= 4 * 3600:
                         self._refresh_top_coins()
