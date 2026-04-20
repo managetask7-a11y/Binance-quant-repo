@@ -166,7 +166,7 @@
                 $("cfgLeverage").value = data.leverage || "";
                 $("cfgTgToken").value = data.telegram_bot_token || "";
                 $("cfgTgChat").value = data.telegram_chat_id || "";
-                $("cfgDiscord").value = data.discord_webhook_url || "";
+                $("cfgTopCoins").value = data.top_n_coins || "15";
             }
         }
         function closeModal() { overlay.classList.remove("visible"); }
@@ -193,6 +193,7 @@
                 atr_mult: $("cfgAtrMult").value,
                 risk_per_trade: $("cfgRisk").value,
                 leverage: $("cfgLeverage").value,
+                top_n_coins: $("cfgTopCoins").value,
                 telegram_bot_token: $("cfgTgToken").value,
                 telegram_chat_id: $("cfgTgChat").value
             };
@@ -327,21 +328,23 @@
         var pill = $("openSettingsModal"); // Updated from statusPill
         var label = $("modeLabel");
         var dot = $("statusDot");
+        var statusText = "Scanning " + data.scan_limit;
+
         if (data.daily_target_reached) {
             pill.className = "flex items-center gap-2 bg-surface-700 border border-warn/30 rounded-full px-4 py-1.5 text-[0.75rem] font-semibold tracking-wider text-warn cursor-pointer hover:bg-surface-600 transition-all hover:border-white/20";
             dot.className = "w-2 h-2 rounded-full bg-warn";
             dot.style.animation = "pulse-anim 2s ease-in-out infinite";
-            label.textContent = "TARGET MET";
+            label.textContent = "TARGET MET | " + statusText;
         } else if (data.dry_run) {
             pill.className = "flex items-center gap-2 bg-surface-700 border border-warn/30 rounded-full px-4 py-1.5 text-[0.75rem] font-semibold tracking-wider text-warn cursor-pointer hover:bg-surface-600 transition-all hover:border-white/20";
             dot.className = "w-2 h-2 rounded-full bg-warn";
             dot.style.animation = "pulse-anim 2s ease-in-out infinite";
-            label.textContent = "DRY RUN";
+            label.textContent = "DRY RUN | " + statusText;
         } else {
             pill.className = "flex items-center gap-2 bg-surface-700 border border-profit/30 rounded-full px-4 py-1.5 text-[0.75rem] font-semibold tracking-wider text-profit cursor-pointer hover:bg-surface-600 transition-all hover:border-white/20";
             dot.className = "w-2 h-2 rounded-full bg-profit";
             dot.style.animation = "pulse-anim 2s ease-in-out infinite";
-            label.textContent = "LIVE";
+            label.textContent = "LIVE | " + statusText;
         }
 
         nextScanISO = data.next_scan;

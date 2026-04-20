@@ -69,6 +69,9 @@ class LiveTrader:
         self.running = False
 
     def _load_state(self):
+        """Load last known state (balance, open trades) from DB"""
+        if not self.user_id or self.user_id == "None":
+            return # Safety guard for initial startup
         try:
             rows = db.fetch_open_trades(self.user_id)
             for row in rows:
@@ -237,6 +240,8 @@ class LiveTrader:
             "prop_daily_loss": PROP_DAILY_LOSS_PCT,
             "daily_profit_target": round(self.daily_profit_target, 2),
             "daily_target_reached": self.daily_target_reached,
+            "market_state": getattr(self, "current_market_state", "medium"),
+            "scan_limit": getattr(self, "current_scan_limit", TOP_N_COINS)
         }
 
     def get_open_trades(self) -> list:
@@ -307,7 +312,14 @@ class LiveTrader:
 
     def _refresh_top_coins(self):
         self.last_symbol_refresh_time = time.time()
-        logger.info("Loading markets from Binance to refresh top coins...")
+        
+        # Use single manual limit from config (Default: 15)
+        scan_limit = self.config.get("top_n_coins", 15)
+        self.current_scan_limit = scan_limit
+        
+        logger.info(f"Refreshing top {scan_limit} coins from Binance...")
+
+        logger.info("Loading markets from Binance...")
         markets = self.exchange.load_markets()
 
         usdt_symbols = [
@@ -322,8 +334,6 @@ class LiveTrader:
             if full_name not in EXCLUDE_SYMBOLS and base not in EXCLUDE_SYMBOLS:
                 filtered.append(s)
 
-        logger.info(f"Found {len(filtered)} active USDT pairs. Fetching volume data...")
-
         all_tickers = self.exchange.fetch_tickers()
 
         volume_ranked = []
@@ -335,7 +345,7 @@ class LiveTrader:
                     volume_ranked.append((symbol, vol_usdt))
 
         volume_ranked.sort(key=lambda x: x[1], reverse=True)
-        self.symbols = [s for s, _ in volume_ranked[:TOP_N_COINS]]
+        self.symbols = [s for s, _ in volume_ranked[:scan_limit]]
 
         logger.info(f"Selected top {len(self.symbols)} symbols:")
         for s in self.symbols[:5]:

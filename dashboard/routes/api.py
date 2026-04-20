@@ -128,7 +128,10 @@ def api_get_config():
         return jsonify({"error": "Unauthorized"}), 403
     
     # Strategy keys should show active values (with global defaults as fallback)
-    strategy_keys = ["tp_rr_ratio", "risk_per_trade", "atr_mult", "leverage"]
+    strategy_keys = [
+        "tp_rr_ratio", "risk_per_trade", "atr_mult", "leverage",
+        "top_n_coins"
+    ]
     
     # Notification keys should stay blank unless specifically set by the user
     notification_keys = ["telegram_bot_token", "telegram_chat_id"]
@@ -161,6 +164,7 @@ def api_update_config():
         "risk_per_trade": float,
         "atr_mult": float,
         "leverage": int,
+        "top_n_coins": int,
         "telegram_bot_token": str,
         "telegram_chat_id": str
     }
