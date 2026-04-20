@@ -633,20 +633,20 @@ class LiveTrader:
             entry = trade["entry_price"]
 
             # --- FAST BREAKEVEN PROTECTION (Breakeven Guard) ---
-            # Once price moves 0.5% in favor, move SL to Entry + Buffer to go 'Risk Free'
+            # Wait for 1.5% profit before moving SL to Entry to avoid noise 'wick-outs'
             pnl_move = (current_price - entry) / entry
             if direction == BUY:
-                # Move SL to just below entry (Safety Buffer)
-                buffer_sl = entry * 0.9995 
-                if pnl_move >= 0.005 and trade["sl_price"] < buffer_sl:
+                # Move SL to just below entry (0.2% Safety Buffer)
+                buffer_sl = entry * 0.9980 
+                if pnl_move >= 0.015 and trade["sl_price"] < buffer_sl:
                     trade["sl_price"] = buffer_sl
-                    logger.info(f"   [PROTECT] {symbol} moved to Breakeven Guard (0.5% profit reached)")
+                    logger.info(f"   [PROTECT] {symbol} moved to Breakeven Guard (1.5% profit reached)")
             else:
-                # Move SL to just above entry (Safety Buffer) for Shorts
-                buffer_sl = entry * 1.0005
-                if pnl_move <= -0.005 and trade["sl_price"] > buffer_sl:
+                # Move SL to just above entry (0.2% Safety Buffer) for Shorts
+                buffer_sl = entry * 1.0020
+                if pnl_move <= -0.015 and trade["sl_price"] > buffer_sl:
                     trade["sl_price"] = buffer_sl
-                    logger.info(f"   [PROTECT] {symbol} moved to Breakeven Guard (0.5% profit reached)")
+                    logger.info(f"   [PROTECT] {symbol} moved to Breakeven Guard (1.5% profit reached)")
 
             closed = False
             exit_price = None
