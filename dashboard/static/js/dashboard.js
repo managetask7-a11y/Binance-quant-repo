@@ -167,6 +167,8 @@
                 $("cfgTgToken").value = data.telegram_bot_token || "";
                 $("cfgTgChat").value = data.telegram_chat_id || "";
                 $("cfgTopCoins").value = data.top_n_coins || "15";
+                $("cfgDailyProfitTarget").value = data.daily_profit_target || "0";
+                $("cfgDailyLossLimit").value = data.prop_daily_loss_pct || "25";
             }
         }
         function closeModal() { overlay.classList.remove("visible"); }
@@ -189,6 +191,7 @@
                         $("cfgRisk").value = data.risk_per_trade;
                         $("cfgLeverage").value = data.leverage;
                         $("cfgTopCoins").value = data.top_n_coins;
+                        if(data.prop_daily_loss_pct) $("cfgDailyLossLimit").value = data.prop_daily_loss_pct;
                         
                         // Flash success text
                         var oldText = this.textContent;
@@ -206,6 +209,8 @@
                 risk_per_trade: $("cfgRisk").value,
                 leverage: $("cfgLeverage").value,
                 top_n_coins: $("cfgTopCoins").value,
+                daily_profit_target: $("cfgDailyProfitTarget").value,
+                prop_daily_loss_pct: $("cfgDailyLossLimit").value,
                 telegram_bot_token: $("cfgTgToken").value,
                 telegram_chat_id: $("cfgTgChat").value
             };

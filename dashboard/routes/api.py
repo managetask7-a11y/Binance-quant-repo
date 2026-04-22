@@ -132,7 +132,8 @@ def api_get_config_defaults():
         "risk_per_trade": RISK_PER_TRADE,
         "atr_mult": ATR_MULT,
         "leverage": LEVERAGE,
-        "top_n_coins": TOP_N_COINS
+        "top_n_coins": TOP_N_COINS,
+        "prop_daily_loss_pct": PROP_DAILY_LOSS_PCT
     }
     return jsonify(strategy_mapping)
 
@@ -147,7 +148,7 @@ def api_get_config():
     # Strategy keys should show active values (with global defaults as fallback)
     strategy_keys = [
         "tp_rr_ratio", "risk_per_trade", "atr_mult", "leverage",
-        "top_n_coins"
+        "top_n_coins", "prop_daily_loss_pct", "daily_profit_target"
     ]
     
     # Notification keys should stay blank unless specifically set by the user
@@ -157,7 +158,10 @@ def api_get_config():
     
     # 1. Strategy: Get from trader instance (which already has defaults applied)
     for k in strategy_keys:
-        config[k] = _trader_instance.config.get(k, "")
+        if k == "daily_profit_target":
+            config[k] = _trader_instance.daily_profit_target
+        else:
+            config[k] = _trader_instance.config.get(k, "")
         
     # 2. Notifications: Get strictly from DB, fallback to empty string
     for k in notification_keys:
@@ -182,6 +186,8 @@ def api_update_config():
         "atr_mult": float,
         "leverage": int,
         "top_n_coins": int,
+        "prop_daily_loss_pct": float,
+        "daily_profit_target": float,
         "telegram_bot_token": str,
         "telegram_chat_id": str
     }

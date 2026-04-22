@@ -191,6 +191,7 @@ class LiveTrader:
                     "risk_per_trade": "risk_per_trade",
                     "atr_mult": "atr_mult",
                     "tp_rr_ratio": "tp_rr_ratio",
+                    "prop_daily_loss_pct": "prop_daily_loss_pct",
                     "telegram_token": "telegram_bot_token",
                     "telegram_chat_id": "telegram_chat_id"
                 }
@@ -199,7 +200,7 @@ class LiveTrader:
                     if val is not None:
                         if internal_key in ["leverage"]:
                             self.config[internal_key] = int(val)
-                        elif internal_key in ["risk_per_trade", "atr_mult", "tp_rr_ratio"]:
+                        elif internal_key in ["risk_per_trade", "atr_mult", "tp_rr_ratio", "prop_daily_loss_pct"]:
                             self.config[internal_key] = float(val)
                         else:
                             self.config[internal_key] = str(val)
@@ -237,7 +238,7 @@ class LiveTrader:
             "tp_rr_ratio": self.config["tp_rr_ratio"],
             "atr_mult": self.config["atr_mult"],
             "prop_max_dd": PROP_MAX_DRAWDOWN_PCT,
-            "prop_daily_loss": PROP_DAILY_LOSS_PCT,
+            "prop_daily_loss": self.config.get("prop_daily_loss_pct", PROP_DAILY_LOSS_PCT),
             "daily_profit_target": round(self.daily_profit_target, 2),
             "daily_target_reached": self.daily_target_reached,
             "market_state": getattr(self, "current_market_state", "medium"),
@@ -409,7 +410,7 @@ class LiveTrader:
             logger.warn("Stopping all trading until manual review")
             return False
 
-        if self.daily_pnl <= -PROP_DAILY_LOSS_PCT * self.daily_start_balance / 100:
+        if self.daily_pnl <= -self.config.get("prop_daily_loss_pct", PROP_DAILY_LOSS_PCT) * self.daily_start_balance / 100:
             logger.warn(f"DAILY LOSS LIMIT HIT: ${self.daily_pnl:.2f}")
             logger.warn("Stopping trading for today")
             return False
@@ -751,7 +752,8 @@ class LiveTrader:
                     current_atr = current_price * 0.01
 
                 sl_dist_pct = trade.get("sl_dist_pct", 2.0)
-                trail_trigger_pct = sl_dist_pct
+                # Ensure trailing doesn't trigger prematurely for tight SLs, causing immediate breakeven exits
+                trail_trigger_pct = max(sl_dist_pct, 1.5)
 
                 if pnl_pct >= trail_trigger_pct:
                     trail_dist = current_price * 0.01
