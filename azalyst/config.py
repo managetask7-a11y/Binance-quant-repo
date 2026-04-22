@@ -22,7 +22,7 @@ MAX_OPEN_TRADES = 10
 MAX_HOLD_SCANS = 48
 BREAKEVEN_AFTER_SCANS = 10     # Middle ground: allows breath but protects wins
 SCAN_INTERVAL_MIN = 5        # Alpha-X 15m Scan (Binance Support)
-CANDLE_TF_MIN = 5              # Alpha-X 15m Candle (Binance Support)
+CANDLE_TF_MIN = 15              # Alpha-X 15m Candle (Binance Support)
 
 PROP_MAX_DRAWDOWN_PCT = 50.0
 PROP_DAILY_LOSS_PCT = 25.0
