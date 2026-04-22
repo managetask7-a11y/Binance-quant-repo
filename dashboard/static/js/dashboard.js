@@ -427,9 +427,11 @@
             return '<tr class="data-flash">' +
                 "<td>" + t.symbol + "</td>" +
                 '<td><span class="' + sideClass + '">' + t.direction + "</span></td>" +
+                "<td>" + formatUSD(t.notional) + "</td>" +
                 "<td>" + formatPrice(t.entry_price) + "</td>" +
                 "<td>" + formatPrice(t.live_price) + "</td>" +
                 '<td class="' + pnlCls + '">' + formatPct(t.pnl_pct) + " (" + formatUSD(t.pnl_usd) + ")</td>" +
+                "<td>" + formatUSD(t.current_value) + "</td>" +
                 "<td><div>" + formatPrice(t.sl_price) + "</div>" + slSubtext + "</td>" +
                 "<td>" + formatPrice(t.tp_price) + "</td>" +
                 '<td><div class="strategies-tags">' + strategyTags(t.strategies) + "</div></td>" +
@@ -466,12 +468,14 @@
             return "<tr>" +
                 "<td>" + t.symbol + "</td>" +
                 '<td><span class="' + sideClass + '">' + t.direction + "</span></td>" +
+                "<td>" + formatUSD(t.notional) + "</td>" +
                 "<td>" + formatPrice(t.entry_price) + "</td>" +
                 "<td>" + formatPrice(t.exit_price) + "</td>" +
                 "<td style='color:#5a6478'>" + (t.sl_price ? formatPrice(t.sl_price) : "--") + "</td>" +
                 "<td style='color:#5a6478'>" + (t.tp_price ? formatPrice(t.tp_price) : "--") + "</td>" +
                 '<td class="' + pnlClass(t.pnl_pct) + '">' + formatPct(t.pnl_pct) + "</td>" +
                 '<td class="' + pnlClass(t.pnl_usd) + '">' + formatUSD(t.pnl_usd) + "</td>" +
+                "<td>" + formatUSD(t.exit_value) + "</td>" +
                 "<td>" + reasonTag(t.reason) + "</td>" +
                 '<td><div class="strategies-tags">' + strategyTags(t.strategies) + "</div></td>" +
                 "<td>" + timeAgo(t.exit_time) + "</td>" +
