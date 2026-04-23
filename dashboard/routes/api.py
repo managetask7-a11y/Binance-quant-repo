@@ -26,6 +26,7 @@ def _verify_user():
         # We MUST load their historical state and balance now that we know who they are
         _trader_instance._load_state()
         _trader_instance._refresh_config()
+        _trader_instance._refresh_top_coins()
     elif _trader_instance and _trader_instance.user_id != user_id:
         return None
     return user_id

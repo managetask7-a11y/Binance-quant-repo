@@ -58,6 +58,7 @@ class LiveTrader:
             "risk_per_trade": RISK_PER_TRADE,
             "atr_mult": ATR_MULT,
             "tp_rr_ratio": TP_RR_RATIO,
+            "top_n_coins": TOP_N_COINS,
             "telegram_token": TELEGRAM_BOT_TOKEN,
             "telegram_chat_id": TELEGRAM_CHAT_ID,
         }
@@ -67,6 +68,9 @@ class LiveTrader:
 
         signal.signal(signal.SIGINT, self._shutdown_handler)
         signal.signal(signal.SIGTERM, self._shutdown_handler)
+
+        # Initial symbol refresh so we have coins to trade immediately
+        self._refresh_top_coins()
 
     def _shutdown_handler(self, signum, frame):
         logger.info(f"Received shutdown signal. Closing {len(self.open_trades)} open trades...")
@@ -242,6 +246,9 @@ class LiveTrader:
         if self.broker.is_live:
             self._sync_live_balance()
             
+        # Ensure we have symbols for the new mode immediately
+        self._refresh_top_coins()
+            
         logger.info(f"Trader reconfigured to {'LIVE' if broker.is_live else 'DRY RUN'} mode for user {self.user_id}")
 
     def _refresh_config(self):
@@ -257,6 +264,7 @@ class LiveTrader:
                     "risk_per_trade": "risk_per_trade",
                     "atr_mult": "atr_mult",
                     "tp_rr_ratio": "tp_rr_ratio",
+                    "top_n_coins": "top_n_coins",
                     "prop_daily_loss_pct": "prop_daily_loss_pct",
                     "telegram_token": "telegram_bot_token",
                     "telegram_chat_id": "telegram_chat_id"
@@ -268,6 +276,8 @@ class LiveTrader:
                             self.config[internal_key] = int(val)
                         elif internal_key in ["risk_per_trade", "atr_mult", "tp_rr_ratio", "prop_daily_loss_pct"]:
                             self.config[internal_key] = float(val)
+                        elif internal_key in ["top_n_coins"]:
+                            self.config[internal_key] = int(val)
                         else:
                             self.config[internal_key] = str(val)
                 
@@ -393,8 +403,8 @@ class LiveTrader:
     def _refresh_top_coins(self):
         self.last_symbol_refresh_time = time.time()
         
-        # Use single manual limit from config (Default: 15)
-        scan_limit = self.config.get("top_n_coins", 15)
+        # Use single manual limit from config (Default: TOP_N_COINS from config.py)
+        scan_limit = self.config.get("top_n_coins", TOP_N_COINS)
         self.current_scan_limit = scan_limit
         
         logger.info(f"Refreshing top {scan_limit} coins from Binance...")
