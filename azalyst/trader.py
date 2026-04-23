@@ -486,9 +486,18 @@ class LiveTrader:
         return pd.DataFrame()
 
     def check_prop_firm_limits(self) -> bool:
-        current_drawdown = (self.initial_balance - self.balance) / self.initial_balance * 100
-        if current_drawdown >= PROP_MAX_DRAWDOWN_PCT:
-            logger.warn(f"MAX DRAWDOWN HIT: {current_drawdown:.1f}% >= {PROP_MAX_DRAWDOWN_PCT}%")
+        drawdown = (self.initial_balance - self.balance) / self.initial_balance * 100
+        
+        # --- Fresh Start Safety Check ---
+        # If we see a huge drawdown but have NO trades yet, it means our initial_balance (default 100) 
+        # is out of sync with the actual live wallet. We should reset it to the current balance.
+        if self.broker.is_live and drawdown >= 50.0 and not self.open_trades and not self.closed_trades:
+            logger.info(f"🔄 Fresh Live Start detected. Resetting starting balance to match wallet: ${self.balance:.2f}")
+            self.initial_balance = self.balance
+            drawdown = 0.0
+            
+        if drawdown >= PROP_MAX_DRAWDOWN_PCT:
+            logger.warn(f"MAX DRAWDOWN HIT: {drawdown:.1f}% >= {PROP_MAX_DRAWDOWN_PCT}%")
             logger.warn("Stopping all trading until manual review")
             return False
 
