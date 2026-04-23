@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request, session
+import requests
 from dashboard.routes.auth import login_required
 from azalyst import db as supabase_db
 from azalyst.config import (
@@ -92,6 +93,17 @@ def api_set_daily_target():
     # Also save to config
     supabase_db.upsert_config(_trader_instance.user_id, "daily_profit_target", str(target))
     return jsonify({"success": True, "daily_profit_target": target})
+
+
+@api_bp.route("/api/server/ip")
+@login_required
+def api_server_ip():
+    try:
+        # Use ipify to get the public IP of the machine
+        resp = requests.get('https://api.ipify.org', timeout=5)
+        return jsonify({"ip": resp.text})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @api_bp.route("/api/settings/mode", methods=["POST"])

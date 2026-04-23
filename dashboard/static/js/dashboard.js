@@ -617,6 +617,26 @@
         }).join("");
     }
 
+    async function fetchServerIP() {
+        var display = $("serverIpDisplay");
+        if (!display) return;
+        display.textContent = "Fetching...";
+        display.classList.remove("hidden");
+        try {
+            var res = await fetch("/api/server/ip");
+            var data = await res.json();
+            if (data.ip) {
+                display.textContent = "IP: " + data.ip;
+            } else {
+                display.textContent = "Error: " + (data.error || "Failed to fetch");
+            }
+        } catch (e) {
+            display.textContent = "Error: " + e.message;
+        }
+    }
+
+    window.fetchServerIP = fetchServerIP;
+
     async function updateEquityChart() {
         var data = await fetchJSON("/api/equity");
         renderEquityChart("equityChart", data);
