@@ -216,7 +216,7 @@ class LiveTrader:
         if not self.broker.is_live:
             return
         fetched = self.broker.fetch_wallet_balance()
-        if fetched is not None and fetched >= 0:
+        if fetched is not None:
             # If this is the first time we're syncing live balance and we have no history,
             # use this as our starting point for all metrics.
             if self.live_balance is None and not self.equity_curve:

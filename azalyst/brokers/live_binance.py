@@ -63,13 +63,17 @@ class LiveBinanceBroker(BaseBroker):
     def fetch_wallet_balance(self) -> float:
         try:
             balance_data = self._exchange.fetch_balance()
-            return float(
-                balance_data.get("USDT", {}).get("total", 0.0) or
-                balance_data.get("total", {}).get("USDT", 0.0)
-            )
+            # CCXT binanceusdm balance format can vary. We check 'total' and currency keys.
+            total = balance_data.get("total", {})
+            val = total.get("USDT")
+            if val is None:
+                # Try nested format
+                val = balance_data.get("USDT", {}).get("total")
+            
+            return float(val) if val is not None else 0.0
         except Exception as exc:
             logger.error(f"Failed to fetch wallet balance: {exc}")
-            return 0.0
+            return None
 
     def place_market_order(self, symbol: str, side: str, qty: float) -> dict:
         for attempt in range(_MAX_RETRIES):
