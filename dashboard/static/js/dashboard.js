@@ -1,5 +1,5 @@
 (function () {
-    var REFRESH_MS = 3000;
+    var REFRESH_MS = 5000;
     var nextScanISO = null;
     var countdownInterval = null;
 
