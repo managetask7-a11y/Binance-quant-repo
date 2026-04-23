@@ -446,7 +446,9 @@
             modalPnl.className = "font-mono text-base font-bold " + (dpnl >= 0 ? "text-profit" : "text-loss");
         }
 
-
+        var dd = parseFloat(data.drawdown_pct);
+        $("metricDrawdown").textContent = dd.toFixed(2) + "%";
+        $("metricDrawdown").className = "metric-value " + (dd > 20 ? "negative" : "");
 
         $("metricOpenCount").textContent = data.open_count + "/" + (data.order_cap || data.max_trades);
         $("metricClosedCount").textContent = data.closed_count;
@@ -493,7 +495,9 @@
 
         nextScanISO = data.next_scan;
 
-
+        var ddPct = Math.min(dd / data.prop_max_dd * 100, 100);
+        $("propDdFill").style.width = ddPct + "%";
+        $("propDdValue").textContent = dd.toFixed(1) + "% / " + data.prop_max_dd + "%";
 
         var dailyLimit = data.initial_balance * data.prop_daily_loss / 100;
         var dailyUsed = Math.abs(Math.min(dpnl, 0));
