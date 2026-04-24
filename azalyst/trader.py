@@ -1021,20 +1021,20 @@ class LiveTrader:
                     self.print_status()
 
                     logger.info(f"Next scan in {SCAN_INTERVAL_MIN} minutes...")
-                    loops = (SCAN_INTERVAL_MIN * 60) // 3
+                    loops = (SCAN_INTERVAL_MIN * 60) // 2
                     for i in range(loops):
                         if not self.running:
                             break
                         try:
-                            # Sync balance every 1 minute (20 * 3s)
-                            if i % 20 == 0:
+                            # Sync balance every 1 minute (30 * 2s)
+                            if i % 30 == 0:
                                 self._sync_live_balance()
                             
-                            # Manage prices every 3s
+                            # Manage prices every 2s
                             self.manage_open_trades(main_scan=False)
                         except Exception as e:
                             logger.error(f"Error managing trades: {e}")
-                        time.sleep(3)
+                        time.sleep(2)
 
                 except Exception as e:
                     logger.error(f"Scan error: {e}\n{traceback.format_exc()}")
