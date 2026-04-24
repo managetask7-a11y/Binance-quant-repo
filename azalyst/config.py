@@ -75,7 +75,6 @@ MIN_VOLUME_MA = 70000
 TOP_N_COINS = 20
 
 ORDER_CAP_TIERS = [
-    (30,   2),
-    (100,  5),
+    (30,   5),
     (500, 10),
 ]
