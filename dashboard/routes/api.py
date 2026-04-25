@@ -186,7 +186,6 @@ def api_reset_daily():
         return jsonify({"error": "Unauthorized"}), 403
         
     try:
-        from dashboard.routes import _trader_instance
         if _trader_instance:
             _trader_instance.manual_reset_daily_stats()
             return jsonify({"success": True, "message": "Daily limits reset successfully."})
