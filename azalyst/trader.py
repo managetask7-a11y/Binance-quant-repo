@@ -593,13 +593,40 @@ class LiveTrader:
         direction = sig["direction"]
         atr = sig["atr"]
         fill_price = last["close"]
+        
+        # --- Market Regime Detection (Adaptive Risk) ---
+        adx = last.get("adx_14", 0)
+        is_trending = adx > 25
+        
+        # Current settings
+        risk_pct = self.config.get("risk_per_trade", RISK_PER_TRADE)
+        tp_ratio = self.config.get("tp_rr_ratio", TP_RR_RATIO)
+        
+        if not is_trending:
+            logger.info(f"   [SIDEWAYS REGIME] ADX: {adx:.1f} < 25. Applying Safety Mode (50% Risk, 1.4 TP)")
+            risk_pct = risk_pct * 0.5   # Cut risk in half
+            tp_ratio = 1.4              # Tighten TP for sideways churn
+        else:
+            logger.info(f"   [TREND REGIME] ADX: {adx:.1f} > 25. Full Aggression Mode.")
 
         # --- Calculate SL/TP with NaN Protection ---
         sl_dist = atr * self.config.get("atr_mult", ATR_MULT)
         sl_price = fill_price - sl_dist if direction == BUY else fill_price + sl_dist
         
+        # SL Capping
+        sl_max_pct = self.config.get("sl_max_pct", SL_MAX_PCT)
+        if direction == BUY:
+            min_sl = fill_price * (1 - sl_max_pct)
+            if sl_price < min_sl: sl_price = min_sl
+        else:
+            max_sl = fill_price * (1 + sl_max_pct)
+            if sl_price > max_sl: sl_price = max_sl
+
+        # TP calculation using adaptive ratio
+        dist = abs(fill_price - sl_price)
+        tp_price = fill_price + dist * tp_ratio if direction == BUY else fill_price - dist * tp_ratio
+
         # Use strategy TP if available, else default to RR ratio
-        tp_price = sig.get("tp_price")
         if tp_price is None or np.isnan(tp_price):
             tp_dist = sl_dist * self.config.get("tp_rr_ratio", TP_RR_RATIO)
             tp_price = fill_price + tp_dist if direction == BUY else fill_price - tp_dist
@@ -608,7 +635,7 @@ class LiveTrader:
         sl_price = float(sl_price) if not np.isnan(sl_price) else fill_price * 0.95
         tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 1.05
 
-        risk_usd = self.balance * self.config["risk_per_trade"] * self.config["leverage"]
+        risk_usd = self.balance * risk_pct * self.config["leverage"]
         qty = risk_usd / fill_price
 
         # --- Alpha-X Logic (Main.py Parity) ---
@@ -875,30 +902,46 @@ class LiveTrader:
                 # Ensure trailing doesn't trigger prematurely for tight SLs, causing immediate breakeven exits
                 trail_trigger_pct = max(sl_dist_pct, 1.5)
 
-                if pnl_pct >= trail_trigger_pct:
-                    trail_dist = current_price * 0.01
-                    if direction == BUY:
-                        new_sl = current_price - trail_dist
-                        new_sl = max(new_sl, entry)
-                        if new_sl > trade["sl_price"]:
-                            old_sl = trade["sl_price"]
-                            trade["sl_price"] = new_sl
-                            logger.info(f"📈 Trailing SL moved for {symbol}: ${old_sl:.4f} -> ${new_sl:.4f}")
-                            if self.broker.is_live:
-                                self.broker.cancel_symbol_orders(symbol)
-                                self.broker.place_sl_tp(symbol, "sell", trade["qty"], trade["sl_price"], trade["tp_price"])
-                            self._save_trade(trade, "open")
-                    else:
-                        new_sl = current_price + trail_dist
-                        new_sl = min(new_sl, entry)
-                        if new_sl < trade["sl_price"]:
-                            old_sl = trade["sl_price"]
-                            trade["sl_price"] = new_sl
-                            logger.info(f"📈 Trailing SL moved for {symbol}: ${old_sl:.4f} -> ${new_sl:.4f}")
-                            if self.broker.is_live:
-                                self.broker.cancel_symbol_orders(symbol)
-                                self.broker.place_sl_tp(symbol, "buy", trade["qty"], trade["sl_price"], trade["tp_price"])
-                            self._save_trade(trade, "open")
+                # --- Adaptive Trailing (Regime Aware) ---
+                adx = 0
+                try:
+                    # In manage_open_trades, we usually don't have the full DF. 
+                    # We'll fetch a small snippet to check the current regime.
+                    df_regime = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 30)
+                    if not df_regime.empty:
+                        df_regime = compute_indicators(df_regime)
+                        adx = df_regime["adx_14"].iloc[-1]
+                except:
+                    adx = 0
+
+                is_trending = adx > 25
+                new_sl = None
+
+                if not is_trending:
+                    # SIDEWAYS REGIME: Aggressive profit lock at 1.0%
+                    if pnl_pct >= 1.0:
+                        new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
+                else:
+                    # TREND REGIME: Milestone Trailing
+                    if pnl_pct >= 10.0:
+                        new_sl = entry * (1 + 0.07) if direction == BUY else entry * (1 - 0.07)
+                    elif pnl_pct >= 6.0:
+                        new_sl = entry * (1 + 0.03) if direction == BUY else entry * (1 - 0.03)
+                    elif pnl_pct >= 3.0:
+                        new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
+
+                if new_sl:
+                    # Only move SL if it improves the current protection
+                    if (direction == BUY and new_sl > trade["sl_price"]) or \
+                       (direction == SELL and new_sl < trade["sl_price"]):
+                        old_sl = trade["sl_price"]
+                        trade["sl_price"] = new_sl
+                        logger.info(f"📈 [REGIME TRAIL] {symbol} ({'Trend' if is_trending else 'Sideways'}): ${old_sl:.4f} -> ${new_sl:.4f}")
+                        if self.broker.is_live:
+                            self.broker.cancel_symbol_orders(symbol)
+                            self.broker.place_sl_tp(symbol, "sell" if direction == BUY else "buy", 
+                                                   trade["qty"], trade["sl_price"], trade["tp_price"])
+                        self._save_trade(trade, "open")
 
             if not closed and trade["scan_count"] >= MAX_HOLD_SCANS:
                 exit_price = current_price

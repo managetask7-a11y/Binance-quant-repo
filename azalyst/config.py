@@ -17,7 +17,7 @@ RISK_PER_TRADE = 0.07          # Restored to 2.0% for 'Big Profit' windows
 ATR_MULT = 1.4
 TP_RR_RATIO = 2.0           
 SL_MIN_PCT = 0.01
-SL_MAX_PCT = 0.03
+SL_MAX_PCT = 0.05
 MAX_OPEN_TRADES = 10
 MAX_HOLD_SCANS = 48
 BREAKEVEN_AFTER_SCANS = 10     # Middle ground: allows breath but protects wins
@@ -30,8 +30,8 @@ PROP_DAILY_LOSS_PCT = 25.0
 TAKER_FEE = 0.0004
 SLIPPAGE_BPS = 1.0
 
-MIN_AGREEMENT = 1               # Alpha-X can lead solo
-WEIGHTED_THRESHOLD = 5.0       # Alpha-X solo trigger
+MIN_AGREEMENT = 2               # Requires 2 strategies to agree
+WEIGHTED_THRESHOLD = 5.0       # Consensus trigger
 
 BUY = 1
 SELL = -1
@@ -52,8 +52,8 @@ MULTI_WEIGHTS = {
     "cbg": 1.2,
     "bb_trend": 1.8,         
     "band_rider": 2.5,       
-    "liquidity_hunter": 3.0, 
-    "alpha_x": 3.0,        # PRIMARY DRIVER (250% Alpha)
+    "liquidity_hunter": 1.0, 
+    "alpha_x": 2.0,        # REDUCED: Now requires agreement
 }
 
 HTF_TIMEFRAME = "4h"

@@ -15,35 +15,34 @@ def signal(df: pd.DataFrame) -> int:
     last = df.iloc[-1]
     prev = df.iloc[-2]
     
-    swing_low = last["local_swing_low"]
-    swing_high = last["local_swing_high"]
+    # Use the established levels BEFORE this candle started
+    level_low = prev["local_swing_low"]
+    level_high = prev["local_swing_high"]
     mfi = last["mfi_14"]
     vol_ma = last.get("vol_ma_20", 0)
     
     # ── 1. Bullish Sweep (Long) ──
-    # Low pierced the level recently
-    swept_low = last["low"] < swing_low or prev["low"] < swing_low
+    # Low pierced the previous established level in the last 3 bars
+    swept_low = any(df.iloc[-i]["low"] < level_low for i in range(1, 4))
     # Currently recovered back above the level (The Trap)
-    recovered_low = last["close"] > swing_low
-    # Money Flow suggests value (Institutions buying the dip)
-    mfi_bottom = mfi < 35 # Oversold zone
+    recovered_low = last["close"] > level_low
+    # Money Flow suggests value
+    mfi_bottom = mfi < 35 
     # Rejection quality
-    bullish_rejection = last["close"] > last["open"] or last["close"] > prev["close"]
+    bullish_rejection = last["close"] > last["open"] or last["conviction"] > 0.6
     
     if swept_low and recovered_low and mfi_bottom and bullish_rejection:
-        # Final Volume Filter
-        if last["volume"] > vol_ma * 1.2 if vol_ma > 0 else True:
-            return BUY
+        return BUY
 
     # ── 2. Bearish Sweep (Short) ──
-    # High pierced the level
-    swept_high = last["high"] > swing_high or prev["high"] > swing_high
+    # High pierced the previous established level in the last 3 bars
+    swept_high = any(df.iloc[-i]["high"] > level_high for i in range(1, 4))
     # Currently fallen back below the level
-    fell_back_high = last["close"] < swing_high
-    # Money Flow suggests peak (Institutions dumping)
-    mfi_top = mfi > 65 # Overbought zone
+    fell_back_high = last["close"] < level_high
+    # Money Flow suggests peak
+    mfi_top = mfi > 65 
     # Rejection quality
-    bearish_rejection = last["close"] < last["open"] or last["close"] < prev["close"]
+    bearish_rejection = last["close"] < last["open"] or last["conviction"] < 0.4
 
     if swept_high and fell_back_high and mfi_top and bearish_rejection:
         if last["volume"] > vol_ma * 1.2 if vol_ma > 0 else True:

@@ -98,10 +98,11 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["vol_ma_20"] = df["volume"].rolling(20).mean()
 
     # Institutional Swing Points (Alpha-X 60-period spec)
-    df["local_swing_high"] = df["high"].rolling(60, center=True).max()
-    df["local_swing_low"] = df["low"].rolling(60, center=True).min()
-    df["swing_high"] = df["high"].rolling(5, center=True).max()
-    df["swing_low"] = df["low"].rolling(5, center=True).min()
+    # Changed from center=True to standard rolling (backward-looking) for Live compatibility
+    df["local_swing_high"] = df["high"].rolling(60).max()
+    df["local_swing_low"] = df["low"].rolling(60).min()
+    df["swing_high"] = df["high"].rolling(5).max()
+    df["swing_low"] = df["low"].rolling(5).min()
 
     df["momentum_9"] = df["close"].diff(9)
 
@@ -121,6 +122,25 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     sell_vol = df["volume"] * (df["high"] - df["close"]) / range_hl
     delta = buy_vol - sell_vol
     df["cvd"] = delta.cumsum()
+
+    # ADX (Average Directional Index) - Trend Strength
+    # Standard 14-period Welles Wilder method
+    df["plus_dm"] = np.where((df["high"] - df["high"].shift(1)) > (df["low"].shift(1) - df["low"]), 
+                             np.maximum(df["high"] - df["high"].shift(1), 0), 0)
+    df["minus_dm"] = np.where((df["low"].shift(1) - df["low"]) > (df["high"] - df["high"].shift(1)), 
+                              np.maximum(df["low"].shift(1) - df["low"], 0), 0)
+    
+    tr = pd.concat([df["high"] - df["low"], 
+                    (df["high"] - df["close"].shift(1)).abs(), 
+                    (df["low"] - df["close"].shift(1)).abs()], axis=1).max(axis=1)
+    
+    # Wilder's Smoothing
+    atr_smooth = tr.rolling(14).mean()
+    plus_di = 100 * (df["plus_dm"].rolling(14).mean() / atr_smooth)
+    minus_di = 100 * (df["minus_dm"].rolling(14).mean() / atr_smooth)
+    
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0.0, 1e-8)
+    df["adx_14"] = dx.rolling(14).mean()
 
     # Money Flow Index (Institutional Volume)
     tp = (df["high"] + df["low"] + df["close"]) / 3.0

@@ -122,6 +122,17 @@ class BacktestEngine:
         slip = SLIPPAGE_BPS / 10000
         fill = price * (1 + slip) if direction == BUY else price * (1 - slip)
 
+        # --- Market Regime Detection (Adaptive Risk) ---
+        adx = bar.get("adx_14", 0)
+        is_trending = adx > 25
+        
+        current_risk = self.risk_per_trade
+        current_tp_ratio = self.tp_rr_ratio
+        
+        if not is_trending:
+            current_risk = current_risk * 0.5
+            current_tp_ratio = 1.4
+
         if is_alpha:
             # SL is the pullback candle extreme
             if direction == BUY:
@@ -145,16 +156,16 @@ class BacktestEngine:
             sl_dist = max(min(self.atr_mult * atr, fill * self.sl_max_pct), fill * self.sl_min_pct)
             if direction == BUY:
                 sl = fill - sl_dist
-                tp1 = fill + sl_dist * self.tp_rr_ratio
-                tp2 = fill + sl_dist * (self.tp_rr_ratio + 1.0)
+                tp1 = fill + sl_dist * current_tp_ratio
+                tp2 = fill + sl_dist * (current_tp_ratio + 1.0)
             else:
                 sl = fill + sl_dist
-                tp1 = fill - sl_dist * self.tp_rr_ratio
-                tp2 = fill - sl_dist * (self.tp_rr_ratio + 1.0)
+                tp1 = fill - sl_dist * current_tp_ratio
+                tp2 = fill - sl_dist * (current_tp_ratio + 1.0)
 
         # Calculate Position Size (Notional)
         # We risk a % of balance, then apply leverage to get the total position size.
-        position_size = self.balance * self.risk_per_trade * self.leverage
+        position_size = self.balance * current_risk * self.leverage
         qty = position_size / fill
 
         self.open_trades[symbol] = {
@@ -245,21 +256,30 @@ class BacktestEngine:
             if pnl_pct > 0 and ((direction == BUY and sl < entry) or (direction == SELL and sl > entry)):
                 trade["sl_price"] = entry
 
-        # --- DYNAMIC TRAILING PROTECTION (Parity with Trader.py) ---
-        if not closed and TRAILING_STOP_ENABLED:
-            TRAIL_TRIGGER = 0.030
-            TRAIL_DIST = 0.020
-            
-            pnl_move = (close - entry) / entry if direction == BUY else (entry - close) / entry
-            if pnl_move >= TRAIL_TRIGGER:
-                if direction == BUY:
-                    new_sl = close * (1 - TRAIL_DIST)
-                    if new_sl > trade["sl_price"]:
-                        trade["sl_price"] = new_sl
-                else:
-                    new_sl = close * (1 + TRAIL_DIST)
-                    if new_sl < trade["sl_price"]:
-                        trade["sl_price"] = new_sl
+        # --- DYNAMIC TRAILING PROTECTION (Adaptive Regime) ---
+        if not closed:
+            pnl_pct = (close - entry) / entry * 100 if direction == BUY else (entry - close) / entry * 100
+            adx = bar.get("adx_14", 0)
+            is_trending = adx > 25
+            new_sl = None
+
+            if not is_trending:
+                # SIDEWAYS: Lock profit at 1.0%
+                if pnl_pct >= 1.0:
+                    new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
+            else:
+                # TRENDING: Milestone Trailing
+                if pnl_pct >= 10.0:
+                    new_sl = entry * (1 + 0.07) if direction == BUY else entry * (1 - 0.07)
+                elif pnl_pct >= 6.0:
+                    new_sl = entry * (1 + 0.03) if direction == BUY else entry * (1 - 0.03)
+                elif pnl_pct >= 3.0:
+                    new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
+
+            if new_sl:
+                if (direction == BUY and new_sl > trade["sl_price"]) or \
+                   (direction == SELL and new_sl < trade["sl_price"]):
+                    trade["sl_price"] = new_sl
 
         # Max hold
         if not closed and trade["scan_count"] >= self.max_hold:
@@ -453,6 +473,20 @@ class BacktestEngine:
             reason_stats[r]["count"] += 1
             reason_stats[r]["pnl"] += t["pnl_usd"]
 
+        # Day of week stats
+        day_stats = defaultdict(lambda: {"count": 0, "pnl": 0.0, "wins": 0})
+        days_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        
+        for t in trades:
+            # We need to extract the day from the entry_time
+            # entry_time is likely a datetime object from the simulation
+            dt = t["entry_time"]
+            day_name = days_names[dt.weekday()]
+            day_stats[day_name]["count"] += 1
+            day_stats[day_name]["pnl"] += t["pnl_usd"]
+            if t["pnl_usd"] > 0:
+                day_stats[day_name]["wins"] += 1
+
         return {
             "total_trades": len(trades),
             "winners": len(winners),
@@ -467,6 +501,7 @@ class BacktestEngine:
             "return_pct": round((self.balance - self.initial_balance) / self.initial_balance * 100, 2),
             "strategy_breakdown": dict(strat_stats),
             "reason_breakdown": dict(reason_stats),
+            "day_breakdown": dict(day_stats),
             "trades": trades,
         }
 
@@ -580,6 +615,17 @@ def print_report(report: dict, config_label: str = "DEFAULT"):
         wr = s["wins"] / s["count"] * 100 if s["count"] > 0 else 0
         status = "[OK]" if s["pnl"] > 0 else "[X]"
         print(f"  {status} {name:<15} {s['count']:>7} {s['wins']:>6} {s['losses']:>7} ${s['pnl']:>+9.2f} {wr:>6.1f}%")
+
+    print("\n  -- Weekly Performance --")
+    days_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    day_stats = report.get("day_breakdown", {})
+    print(f"  {'Day':<12} {'Trades':>7} {'Win%':>7} {'Net P&L':>12}")
+    print(f"  {'-'*12} {'-'*7} {'-'*7} {'-'*12}")
+    for day in days_names:
+        s = day_stats.get(day, {"count": 0, "pnl": 0.0, "wins": 0})
+        wr = s["wins"] / s["count"] * 100 if s["count"] > 0 else 0
+        status = "[OK]" if s["pnl"] > 0 else "[X]"
+        print(f"  {status} {day:<9} {s['count']:>7} {wr:>6.1f}% ${s['pnl']:>+11.2f}")
 
     print("\n  -- Exit Reason Breakdown --")
     reasons = report.get("reason_breakdown", {})
