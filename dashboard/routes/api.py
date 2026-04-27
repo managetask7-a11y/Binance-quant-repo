@@ -301,3 +301,53 @@ def api_update_config():
 @api_bp.route("/test_ping")
 def test_ping():
     return jsonify({"status": "healthy", "message": "pong"})
+
+@api_bp.route("/api/backtest/run", methods=["POST"])
+@login_required
+def run_backtest():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    data = request.get_json(silent=True) or {}
+    start_date = data.get("start_date")
+    end_date = data.get("end_date")
+    top_coins = data.get("top_coins", "20")
+    
+    # Extract config overrides
+    config_overrides = {}
+    if "risk_per_trade" in data: config_overrides["risk_per_trade"] = float(data["risk_per_trade"])
+    if "tp_rr_ratio" in data: config_overrides["tp_rr_ratio"] = float(data["tp_rr_ratio"])
+    if "min_agreement" in data: config_overrides["min_agreement"] = int(data["min_agreement"])
+    if "leverage" in data: config_overrides["leverage"] = int(data["leverage"])
+    
+    def generate():
+        import os
+        import subprocess
+        import json
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        cmd = [
+            "python", "backtest.py", 
+            "--json",
+            "--top-coins", str(top_coins)
+        ]
+        if start_date:
+            cmd.extend(["--start-date", start_date])
+        if end_date:
+            cmd.extend(["--end-date", end_date])
+        if config_overrides:
+            cmd.extend(["--config", json.dumps(config_overrides)])
+            
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=base_dir)
+
+        
+        for line in iter(process.stdout.readline, ""):
+            if line.strip():
+                yield line + "\n"
+            
+        process.stdout.close()
+        process.wait()
+        
+    from flask import Response
+    return Response(generate(), mimetype='application/x-ndjson')
+

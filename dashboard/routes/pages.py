@@ -35,5 +35,9 @@ def setup_post():
         supabase_db.upsert_config(user_id, "binance_api_key", api_key)
     if api_secret:
         supabase_db.upsert_config(user_id, "binance_api_secret", api_secret)
-
     return {"success": True, "mode": mode}
+
+@pages_bp.route("/backtest")
+@login_required
+def backtest():
+    return render_template("backtest.html")

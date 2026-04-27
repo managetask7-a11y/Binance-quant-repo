@@ -40,3 +40,6 @@ class DemoBroker(BaseBroker):
 
     def fetch_trade_history(self, symbol: str, limit: int) -> list:
         return []
+
+    def fetch_position(self, symbol: str) -> dict:
+        return {}

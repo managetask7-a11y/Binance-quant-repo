@@ -42,7 +42,7 @@ def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
     return True
 
 
-def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None) -> Optional[dict]:
+def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None, min_agreement: int = MIN_AGREEMENT) -> Optional[dict]:
     if len(df) < 200:
         return None
         
@@ -68,11 +68,11 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
         weight = MULTI_WEIGHTS.get(name, 1.0)
 
         # ── Adaptive Regime Weighting ──
-        adx_val = last.get("adx", 20)
+        adx_val = last.get("adx_14", 20)
         adx_50_val = last.get("adx_50", 20)
         
         # Boost during clear trends
-        if adx_val > 25:
+        if adx_val > 15:
             weight *= 1.2
             
         # Penalize during directionless long-term markets
@@ -110,7 +110,7 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
     if np.isnan(atr_val) or atr_val <= 0:
         return None
 
-    if buy_count >= MIN_AGREEMENT and buy_weight >= WEIGHTED_THRESHOLD and buy_count > sell_count:
+    if buy_count >= min_agreement and buy_weight >= WEIGHTED_THRESHOLD and buy_count > sell_count:
         # HTF Filter: Ignore long signals if macro trend is bearish
         if htf_trend == -1: return None
         # RSI Guard: Only block at extreme exhaustion levels (>85)
@@ -123,7 +123,7 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
             "strategies": buy_strategies,
         }
 
-    if sell_count >= MIN_AGREEMENT and sell_weight >= WEIGHTED_THRESHOLD and sell_count > buy_count:
+    if sell_count >= min_agreement and sell_weight >= WEIGHTED_THRESHOLD and sell_count > buy_count:
         # HTF Filter: Ignore short signals if macro trend is bullish
         if htf_trend == 1: return None
         # RSI Guard: Only block at extreme exhaustion levels (<15)

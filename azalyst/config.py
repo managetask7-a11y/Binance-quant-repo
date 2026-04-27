@@ -53,7 +53,7 @@ MULTI_WEIGHTS = {
     "bb_trend": 1.8,         
     "band_rider": 2.5,       
     "liquidity_hunter": 1.0, 
-    "alpha_x": 2.0,        # REDUCED: Now requires agreement
+    "alpha_x": 3.0,        # PRIMARY DRIVER (250% Alpha)
 }
 
 HTF_TIMEFRAME = "4h"

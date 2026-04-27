@@ -165,3 +165,17 @@ class LiveBinanceBroker(BaseBroker):
         except Exception as exc:
             logger.error(f"Failed to fetch trade history for {symbol}: {exc}")
             return []
+
+    def fetch_position(self, symbol: str) -> dict:
+        """Fetch the current position for a symbol to verify if it is open/closed."""
+        try:
+            positions = self._exchange.fetch_positions([symbol])
+            if positions and len(positions) > 0:
+                # CCXT returns a list, find the one matching the symbol
+                for pos in positions:
+                    if pos['symbol'] == symbol:
+                        return pos
+            return {}
+        except Exception as exc:
+            logger.error(f"Failed to fetch position for {symbol}: {exc}")
+            return {}

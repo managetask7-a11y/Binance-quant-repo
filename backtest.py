@@ -19,8 +19,10 @@ import os
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
+JSON_OUTPUT = False
+
 def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=40, fill='-', start_time=None):
-    """Call in a loop to create terminal progress bar with ETA"""
+    """Call in a loop to create terminal progress bar with ETA or JSON output"""
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filled_length = int(length * iteration // total)
     bar = fill * filled_length + '-' * (length - filled_length)
@@ -36,11 +38,15 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         else:
             eta_str = f"{m:02d}:{s:02d}"
             
-    # Use \033[K to clear line to end
-    sys.stdout.write(f'\r\033[K{prefix} |{bar}| {percent}% {suffix} | ETA: {eta_str}')
-    sys.stdout.flush()
-    if iteration == total: 
-        print()
+    if JSON_OUTPUT:
+        import json
+        print(json.dumps({"type": "progress", "prefix": prefix.strip(), "symbol": suffix.strip(), "percent": float(percent), "eta": eta_str}), flush=True)
+    else:
+        # Use \033[K to clear line to end
+        sys.stdout.write(f'\r\033[K{prefix} |{bar}| {percent}% {suffix} | ETA: {eta_str}')
+        sys.stdout.flush()
+        if iteration == total: 
+            print()
 
 import ccxt
 import numpy as np
@@ -95,7 +101,11 @@ class BacktestEngine:
 
     def _consensus(self, df: pd.DataFrame, htf_slice: pd.DataFrame = None) -> dict | None:
         from azalyst.consensus import multi_strategy_scan
-        return multi_strategy_scan(df, htf_df=htf_slice)
+        # --- Adaptive Consensus (Regime Awareness) ---
+        adx_val = df["adx_14"].iloc[-1]
+        # Trending = 1 agreement, Sideways = 2 agreement
+        dynamic_min = 1 if adx_val > 20 else 2
+        return multi_strategy_scan(df, htf_df=htf_slice, min_agreement=dynamic_min)
 
     def _open_trade(self, symbol: str, bar: pd.Series, sig: dict, bar_time):
         direction = sig["direction"]
@@ -124,13 +134,12 @@ class BacktestEngine:
 
         # --- Market Regime Detection (Adaptive Risk) ---
         adx = bar.get("adx_14", 0)
-        is_trending = adx > 25
+        is_trending = adx > 20
         
         current_risk = self.risk_per_trade
         current_tp_ratio = self.tp_rr_ratio
         
         if not is_trending:
-            current_risk = current_risk * 0.5
             current_tp_ratio = 1.4
 
         if is_alpha:
@@ -260,7 +269,7 @@ class BacktestEngine:
         if not closed:
             pnl_pct = (close - entry) / entry * 100 if direction == BUY else (entry - close) / entry * 100
             adx = bar.get("adx_14", 0)
-            is_trending = adx > 25
+            is_trending = adx > 20
             new_sl = None
 
             if not is_trending:
@@ -273,7 +282,7 @@ class BacktestEngine:
                     new_sl = entry * (1 + 0.07) if direction == BUY else entry * (1 - 0.07)
                 elif pnl_pct >= 6.0:
                     new_sl = entry * (1 + 0.03) if direction == BUY else entry * (1 - 0.03)
-                elif pnl_pct >= 3.0:
+                elif pnl_pct >= 5.0:
                     new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
 
             if new_sl:
@@ -326,6 +335,7 @@ class BacktestEngine:
         scan_every_n: simulate scanning every N bars (2 bars = 30min for 15m TF)
         """
         start_time = time.time()
+        global JSON_OUTPUT
         
         # Build a global timeline from all symbols
         all_times = set()
@@ -333,7 +343,8 @@ class BacktestEngine:
             all_times.update(df.index.tolist())
         timeline = sorted(all_times)
 
-        print(f"\n- Running backtest over {len(timeline)} bars ({len(all_data)} symbols)...\n")
+        if not JSON_OUTPUT:
+            print(f"\n- Running backtest over {len(timeline)} bars ({len(all_data)} symbols)...\n")
 
         bar_counter = 0
         loop_start = time.time()
@@ -427,7 +438,8 @@ class BacktestEngine:
                 self._close_trade(sym, last["close"], "BACKTEST_END", all_data[sym].index[-1])
                 
         elapsed = time.time() - start_time
-        print(f"\n[OK] Backtest completed in {elapsed:.2f} seconds.")
+        if not JSON_OUTPUT:
+            print(f"\n[OK] Backtest completed in {elapsed:.2f} seconds.")
 
     def report(self) -> dict:
         trades = self.closed_trades
@@ -679,33 +691,52 @@ def print_report(report: dict, config_label: str = "DEFAULT"):
 # =====================================================================
 
 def main():
+    global JSON_OUTPUT
     parser = argparse.ArgumentParser(description="Azalyst Alpha X - 2-Month Backtest")
     parser.add_argument("--days", type=int, default=60, help="Number of days to backtest (default: 60)")
+    parser.add_argument("--start-date", type=str, help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD)")
+    parser.add_argument("--json", action="store_true", help="Output JSON for dashboard parsing")
+    parser.add_argument("--config", type=str, help="JSON string of config overrides")
     parser.add_argument("--top-coins", type=int, default=25, help="Number of top coins by volume (default: 25)")
     parser.add_argument("--scan-bars", type=int, default=2, help="Scan every N bars (2 = 30min for 15m TF)")
     parser.add_argument("--optimize", action="store_true", help="Run multiple configs and compare")
     parser.add_argument("--no-sab", action="store_true", help="Disable S-A-B gate (runs pure strategy vote for comparison)")
     args = parser.parse_args()
     
+    if args.json:
+        JSON_OUTPUT = True
+    
     sab_on = not args.no_sab
-    if not sab_on:
-        print("[WARN] SAB gate DISABLED -- running pure strategy vote mode for comparison.")
-    else:
-        print("[OK] SAB gate ENABLED -- S-A-B tier validation active.")
+    if not JSON_OUTPUT:
+        if not sab_on:
+            print("[WARN] SAB gate DISABLED -- running pure strategy vote mode for comparison.")
+        else:
+            print("[OK] SAB gate ENABLED -- S-A-B tier validation active.")
 
     exchange = ccxt.binance({"enableRateLimit": True, "options": {"defaultType": "future"}})
 
     symbols = get_top_symbols(exchange, n=args.top_coins)
 
-    since_dt = datetime.now(timezone.utc) - timedelta(days=args.days)
-    since_ms = int(since_dt.timestamp() * 1000)
+    if args.start_date:
+        start_dt = datetime.strptime(args.start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        since_ms = int(start_dt.timestamp() * 1000)
+        if args.end_date:
+            end_dt = datetime.strptime(args.end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        else:
+            end_dt = datetime.now(timezone.utc)
+        args.days = (end_dt - start_dt).days
+    else:
+        since_dt = datetime.now(timezone.utc) - timedelta(days=args.days)
+        since_ms = int(since_dt.timestamp() * 1000)
     
     fetch_start = time.time()
 
     # -- Fetch Candles --
     tf_str = f"{CANDLE_TF_MIN}m"
     all_data = {}
-    print(f"\n- Fetching {tf_str} data & precomputing indicators for {len(symbols)} symbols...")
+    if not JSON_OUTPUT:
+        print(f"\n- Fetching {tf_str} data & precomputing indicators for {len(symbols)} symbols...")
     for i, sym in enumerate(symbols):
         print_progress_bar(i, len(symbols), prefix='Data Fetch (1/2):', suffix=f'[{sym:<10}]', start_time=fetch_start)
         df = fetch_historical(exchange, sym, tf_str, since_ms)
@@ -722,7 +753,8 @@ def main():
     # -- Fetch 4h candles for HTF filter --
     htf_since_ms = int((datetime.now(timezone.utc) - timedelta(days=args.days + 60)).timestamp() * 1000)
     htf_data = {}
-    print(f"\n- Fetching 4h HTF data for {len(all_data)} symbols...")
+    if not JSON_OUTPUT:
+        print(f"\n- Fetching 4h HTF data for {len(all_data)} symbols...")
     htf_start = time.time()
     for i, sym in enumerate(all_data.keys()):
         print_progress_bar(i, len(all_data), prefix='Data Fetch (2/2):', suffix=f'[{sym:<10}]', start_time=htf_start)
@@ -735,8 +767,9 @@ def main():
         time.sleep(0.2)
     print_progress_bar(len(all_data), len(all_data), prefix='Data Fetch (2/2):', suffix='[Done]      ', start_time=htf_start)
 
-    print(f"\n[OK] Data fetching & precomputation completed in {time.time() - fetch_start:.2f}s")
-    print(f"   Stored {len(all_data)} symbols with {tf_str} candles, {len(htf_data)} with 4h HTF data.\n")
+    if not JSON_OUTPUT:
+        print(f"\n[OK] Data fetching & precomputation completed in {time.time() - fetch_start:.2f}s")
+        print(f"   Stored {len(all_data)} symbols with {tf_str} candles, {len(htf_data)} with 4h HTF data.\n")
 
     # -- Define configs --
     default_config = {
@@ -756,13 +789,26 @@ def main():
         "trail_pct": 0.01,  # 1% trailing distance
         "max_same_direction": MAX_SAME_DIRECTION,
     }
+    
+    if args.config:
+        try:
+            import json
+            overrides = json.loads(args.config)
+            default_config.update(overrides)
+        except Exception as e:
+            if not JSON_OUTPUT:
+                print(f"[ERR] Failed to parse config override: {e}")
 
     if not args.optimize:
         # -- Single run with current config --
         engine = BacktestEngine(default_config)
         engine.run(all_data, htf_data, scan_every_n=args.scan_bars)
         report = engine.report()
-        print_report(report, "CURRENT CONFIG")
+        if JSON_OUTPUT:
+            import json
+            print(json.dumps({"type": "result", "report": report}))
+        else:
+            print_report(report, "CURRENT CONFIG")
     else:
         # -- Optimization: compare multiple configs --
         configs = {

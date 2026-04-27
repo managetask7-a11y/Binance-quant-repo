@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Backtester — Azalyst Alpha X{% endblock %}
+
+{% block content %}
+<header class="flex items-center justify-between py-5 border-b border-white/[0.06] mb-6">
+    <div class="flex items-center gap-3.5">
+        <a href="/" class="w-[42px] h-[42px] flex items-center justify-center bg-white/[0.04] border border-white/[0.08] rounded-[10px] hover:bg-white/[0.08] transition-colors">
+            ⬅️
+        </a>
+        <div class="flex flex-col">
+            <span class="text-[1.15rem] font-extrabold tracking-[1.5px] bg-gradient-to-r from-accent-cyan to-accent-purple bg-clip-text text-transparent">BACKTEST ENGINE</span>
+            <span class="text-[0.78rem] text-gray-500 tracking-wide">Test your strategies on historical data</span>
+        </div>
+    </div>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Config Panel -->
+    <div class="lg:col-span-1 bg-surface-700 border border-white/[0.06] rounded-[10px] p-5">
+        <h2 class="text-sm font-bold text-gray-300 mb-4 uppercase tracking-wider border-b border-white/[0.06] pb-2">Configuration</h2>
+        
+        <form id="backtestForm" class="space-y-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Time Period</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="date" id="startDate" name="start_date" class="w-full bg-surface-900 border border-white/[0.06] rounded px-3 py-2 text-sm text-gray-200">
+                    <input type="date" id="endDate" name="end_date" class="w-full bg-surface-900 border border-white/[0.06] rounded px-3 py-2 text-sm text-gray-200">
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Top Coins by Volume</label>
+                <input type="number" id="topCoins" name="top_coins" value="20" class="w-full bg-surface-900 border border-white/[0.06] rounded px-3 py-2 text-sm text-gray-200">
+            </div>
+            
+            <div class="border-t border-white/[0.06] pt-3 mt-2">
+                <label class="block text-xs text-gray-400 mb-2 font-semibold">Strategy Parameters</label>
+                
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Risk Per Trade (%)</label>
+                        <input type="number" step="0.01" id="riskPerTrade" name="risk_per_trade" value="0.07" class="w-full bg-surface-900 border border-white/[0.06] rounded px-3 py-2 text-sm text-gray-200">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Take Profit RR</label>
+                        <input type="number" step="0.1" id="tpRrRatio" name="tp_rr_ratio" value="2.0" class="w-full bg-surface-900 border border-white/[0.06] rounded px-3 py-2 text-sm text-gray-200">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Min Agreement</label>
+                        <input type="number" id="minAgreement" name="min_agreement" value="1" class="w-full bg-surface-900 border border-white/[0.06] rounded px-3 py-2 text-sm text-gray-200">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Leverage (x)</label>
+                        <input type="number" id="leverage" name="leverage" value="15" class="w-full bg-surface-900 border border-white/[0.06] rounded px-3 py-2 text-sm text-gray-200">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="pt-2">
+                <button type="submit" id="runBtn" class="w-full bg-accent-blue hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors flex justify-center items-center gap-2">
+                    ▶️ Run Backtest
+                </button>
+            </div>
+        </form>
+    </div>
+
+    
+    <!-- Results Panel -->
+    <div class="lg:col-span-2 space-y-6">
+        
+        <!-- Progress Bar -->
+        <div id="progressContainer" class="bg-surface-700 border border-white/[0.06] rounded-[10px] p-5 hidden">
+            <div class="flex justify-between items-center mb-2">
+                <span id="progressPrefix" class="text-sm text-gray-300 font-mono">Initializing...</span>
+                <span id="progressEta" class="text-sm text-accent-cyan font-mono">ETA: --:--</span>
+            </div>
+            <div class="w-full bg-surface-900 rounded-full h-2.5 mb-1 overflow-hidden border border-white/[0.04]">
+                <div id="progressBar" class="bg-gradient-to-r from-accent-cyan to-accent-purple h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+            <div class="text-right text-xs text-gray-500 font-mono" id="progressPercent">0%</div>
+        </div>
+        
+        <!-- Final Results -->
+        <div id="resultsContainer" class="bg-surface-700 border border-white/[0.06] rounded-[10px] p-5 hidden">
+            <h2 class="text-lg font-bold text-gray-200 mb-4 border-b border-white/[0.06] pb-2">Backtest Results</h2>
+            
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-surface-800 p-3 rounded border border-white/[0.04]">
+                    <div class="text-xs text-gray-500">Total PnL</div>
+                    <div id="resPnl" class="text-xl font-bold text-profit">$--</div>
+                </div>
+                <div class="bg-surface-800 p-3 rounded border border-white/[0.04]">
+                    <div class="text-xs text-gray-500">Win Rate</div>
+                    <div id="resWinRate" class="text-xl font-bold text-gray-200">--%</div>
+                </div>
+                <div class="bg-surface-800 p-3 rounded border border-white/[0.04]">
+                    <div class="text-xs text-gray-500">Total Trades</div>
+                    <div id="resTrades" class="text-xl font-bold text-gray-200">--</div>
+                </div>
+                <div class="bg-surface-800 p-3 rounded border border-white/[0.04]">
+                    <div class="text-xs text-gray-500">Max Drawdown</div>
+                    <div id="resDrawdown" class="text-xl font-bold text-loss">--%</div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Default dates
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 30);
+    
+    document.getElementById('startDate').valueAsDate = start;
+    document.getElementById('endDate').valueAsDate = end;
+
+    document.getElementById('backtestForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const btn = document.getElementById('runBtn');
+        const progressCont = document.getElementById('progressContainer');
+        const resCont = document.getElementById('resultsContainer');
+        
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Running...';
+        progressCont.classList.remove('hidden');
+        resCont.classList.add('hidden');
+        
+        // Reset progress
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressPercent').innerText = '0%';
+        
+        const formData = {
+            start_date: document.getElementById('startDate').value,
+            end_date: document.getElementById('endDate').value,
+            top_coins: document.getElementById('topCoins').value,
+            risk_per_trade: document.getElementById('riskPerTrade').value,
+            tp_rr_ratio: document.getElementById('tpRrRatio').value,
+            min_agreement: document.getElementById('minAgreement').value,
+            leverage: document.getElementById('leverage').value
+        };
+
+        
+        try {
+            // Use fetch to start the backtest. Server will return a stream or an ID
+            const response = await fetch('/api/backtest/run', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+            
+            // Read SSE stream
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, {stream: true});
+                const lines = chunk.split('\n');
+                
+                for(let line of lines) {
+                    if(!line.trim()) continue;
+                    try {
+                        const data = JSON.parse(line);
+                        if(data.type === 'progress') {
+                            document.getElementById('progressPrefix').innerText = `${data.prefix} ${data.symbol}`;
+                            document.getElementById('progressEta').innerText = `ETA: ${data.eta}`;
+                            document.getElementById('progressBar').style.width = `${data.percent}%`;
+                            document.getElementById('progressPercent').innerText = `${data.percent.toFixed(1)}%`;
+                        } else if(data.type === 'result') {
+                            const r = data.report;
+                            document.getElementById('resPnl').innerText = `$${r.total_pnl.toFixed(2)}`;
+                            document.getElementById('resPnl').className = `text-xl font-bold ${r.total_pnl >= 0 ? 'text-profit' : 'text-loss'}`;
+                            document.getElementById('resWinRate').innerText = `${r.win_rate.toFixed(1)}%`;
+                            document.getElementById('resTrades').innerText = r.total_trades;
+                            document.getElementById('resDrawdown').innerText = `${r.max_drawdown_pct.toFixed(1)}%`;
+                            
+                            progressCont.classList.add('hidden');
+                            resCont.classList.remove('hidden');
+                        }
+                    } catch(e) {
+                        console.error("Parse error:", e, line);
+                    }
+                }
+            }
+            
+        } catch(e) {
+            showToast("Backtest failed: " + e.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '▶️ Run Backtest';
+        }
+    });
+</script>
+{% endblock %}

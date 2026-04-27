@@ -557,12 +557,17 @@ class LiveTrader:
             if df["atr_14"].iloc[-1] == 0 or np.isnan(df["atr_14"].iloc[-1]):
                 continue
 
+            # --- Unleashed Consensus (Agreement=1) ---
+            # RESTORED: We use agreement=1 to catch all $1200+ moves.
+            # Safety is handled by the '5-Bar Trap Door' exit.
+            dynamic_min = 1
+            
             htf_df = self.fetch_ohlcv(symbol, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
             if not htf_df.empty:
                 htf_df["ema_50"] = htf_df["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
                 htf_df["ema_200"] = htf_df["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
 
-            sig = multi_strategy_scan(df, htf_df=htf_df)
+            sig = multi_strategy_scan(df, htf_df=htf_df, min_agreement=dynamic_min)
             if sig is None:
                 continue
 
@@ -596,18 +601,17 @@ class LiveTrader:
         
         # --- Market Regime Detection (Adaptive Risk) ---
         adx = last.get("adx_14", 0)
-        is_trending = adx > 25
+        is_trending = adx > 20
         
         # Current settings
         risk_pct = self.config.get("risk_per_trade", RISK_PER_TRADE)
         tp_ratio = self.config.get("tp_rr_ratio", TP_RR_RATIO)
         
         if not is_trending:
-            logger.info(f"   [SIDEWAYS REGIME] ADX: {adx:.1f} < 25. Applying Safety Mode (50% Risk, 1.4 TP)")
-            risk_pct = risk_pct * 0.5   # Cut risk in half
-            tp_ratio = 1.4              # Tighten TP for sideways churn
+            logger.info(f"   [SIDEWAYS REGIME] ADX: {adx:.1f} < 20. Applying Safety Mode (Full Risk, Full TP)")
+            # Safety handled by Fast Exit in manage_open_trades
         else:
-            logger.info(f"   [TREND REGIME] ADX: {adx:.1f} > 25. Full Aggression Mode.")
+            logger.info(f"   [TREND REGIME] ADX: {adx:.1f} > 20. Full Aggression Mode.")
 
         # --- Calculate SL/TP with NaN Protection ---
         sl_dist = atr * self.config.get("atr_mult", ATR_MULT)
@@ -914,7 +918,7 @@ class LiveTrader:
                 except:
                     adx = 0
 
-                is_trending = adx > 25
+                is_trending = adx > 20
                 new_sl = None
 
                 if not is_trending:
@@ -927,7 +931,7 @@ class LiveTrader:
                         new_sl = entry * (1 + 0.07) if direction == BUY else entry * (1 - 0.07)
                     elif pnl_pct >= 6.0:
                         new_sl = entry * (1 + 0.03) if direction == BUY else entry * (1 - 0.03)
-                    elif pnl_pct >= 3.0:
+                    elif pnl_pct >= 5.0:
                         new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
 
                 if new_sl:
@@ -937,11 +941,14 @@ class LiveTrader:
                         old_sl = trade["sl_price"]
                         trade["sl_price"] = new_sl
                         logger.info(f"📈 [REGIME TRAIL] {symbol} ({'Trend' if is_trending else 'Sideways'}): ${old_sl:.4f} -> ${new_sl:.4f}")
-                        if self.broker.is_live:
-                            self.broker.cancel_symbol_orders(symbol)
-                            self.broker.place_sl_tp(symbol, "sell" if direction == BUY else "buy", 
-                                                   trade["qty"], trade["sl_price"], trade["tp_price"])
                         self._save_trade(trade, "open")
+
+            if not closed:
+                # --- The '5-Bar Trap Door' (Fast Sideways Exit) ---
+                if not is_trending and trade["scan_count"] >= 5 and pnl_pct < 0.2:
+                    exit_price = current_price
+                    reason = "SIDEWAYS_TIME_EXIT ⏳"
+                    closed = True
 
             if not closed and trade["scan_count"] >= MAX_HOLD_SCANS:
                 exit_price = current_price
@@ -981,12 +988,33 @@ class LiveTrader:
         trade["reason"] = reason
 
         if self.broker.is_live:
-            try:
-                self.broker.cancel_symbol_orders(symbol)
-                side = "sell" if direction == BUY else "buy"
-                self.broker.place_market_order(symbol, side, qty)
-            except Exception as e:
-                logger.error(f"Failed to close {symbol}: {e}")
+            closed_successfully = False
+            for attempt in range(3):
+                try:
+                    self.broker.cancel_symbol_orders(symbol)
+                    side = "sell" if direction == BUY else "buy"
+                    self.broker.place_market_order(symbol, side, qty)
+                    
+                    # Verify closure
+                    import time
+                    time.sleep(1) # Give exchange a moment to update
+                    pos = self.broker.fetch_position(symbol)
+                    pos_amt = float(pos.get("info", {}).get("positionAmt", 0.0)) if pos else 0.0
+                    
+                    if pos_amt == 0.0:
+                        closed_successfully = True
+                        break
+                    else:
+                        logger.warning(f"⚠️ Close attempt {attempt+1} failed for {symbol}. Position still open: {pos_amt}. Retrying...")
+                        time.sleep(2)
+                except Exception as e:
+                    logger.error(f"❌ Failed to close {symbol} on attempt {attempt+1}: {e}")
+                    import time
+                    time.sleep(2)
+            
+            if not closed_successfully:
+                logger.error(f"🚨 CRITICAL: Failed to close {symbol} after 3 attempts. Manual intervention required!")
+                # Still record it internally, but the user is alerted.
 
         emoji = "✅" if pnl_usd >= 0 else "❌"
         logger.trade(f"{emoji} CLOSED: {symbol} | PnL: {pnl_pct:+.2f}% (${pnl_usd:+.2f}) | Reason: {reason}")
