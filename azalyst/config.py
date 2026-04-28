@@ -13,15 +13,14 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 INITIAL_BALANCE = 100.0
 LEVERAGE = 15
-RISK_PER_TRADE = 0.08          # Boosted for Precision Strike
+RISK_PER_TRADE = 0.14          # 10% risk for bigger winners
 ATR_MULT = 4.0           # Max room for 45% Win Rate
-TP_RR_RATIO = 2.0           
-# RESTORED for $300+ Profit
-SL_MIN_PCT = 0.01
-SL_MAX_PCT = 0.05
+TP_RR_RATIO = 2.5              # Higher R:R = bigger runners
+SL_MIN_PCT = 0.015
+SL_MAX_PCT = 0.04
 MAX_OPEN_TRADES = 10
 MAX_HOLD_SCANS = 48
-BREAKEVEN_AFTER_SCANS = 10     # Middle ground: allows breath but protects wins
+BREAKEVEN_AFTER_SCANS = 16     # Restore for stability
 SCAN_INTERVAL_MIN = 5        # Alpha-X 15m Scan (Binance Support)
 CANDLE_TF_MIN = 15              # Alpha-X 15m Candle (Binance Support)
 
@@ -31,30 +30,30 @@ PROP_DAILY_LOSS_PCT = 25.0
 TAKER_FEE = 0.0004
 SLIPPAGE_BPS = 1.0
 
-MIN_AGREEMENT = 2               # Requires 2 strategies to agree
-WEIGHTED_THRESHOLD = 5.5       # Precision Volume trigger
+MIN_AGREEMENT = 2               # Base agreement (Adaptive engine will upgrade to 3 in chop)
+WEIGHTED_THRESHOLD = 5.5       # High precision trigger
 
 BUY = 1
 SELL = -1
 HOLD = 0
 
 MULTI_WEIGHTS = {
-    "bnf": 1.0,
-    "nbb": 1.0,            # Reduced (lower accuracy)
-    "kane": 0.5,
-    "umar": 2.2,             
+    "bnf": 0.5,
+    "nbb": 0.0,            # KILLED: Loser
+    "kane": 0.0,           # KILLED: Loser
+    "umar": 2.5,             
     "zamco": 0.5,
-    "jadecap": 0.5,
-    "marci": 0.1,          
-    "fvg": 3.0,              # MASTER STRATEGY (100% Accuracy)
-    "ote": 1.0,
+    "jadecap": 0.2,
+    "marci": 0.0,          # KILLED: Loser in long-term
+    "fvg": 3.0,              # MASTER STRATEGY
+    "ote": 0.0,            # KILLED: Loser
     "cvd_divergence": 0.5,
     "wyckoff": 2.5,
-    "cbg": 0.1,            
-    "bb_trend": 2.2,         
+    "cbg": 0.0,            # KILLED: Loser
+    "bb_trend": 2.5,         
     "band_rider": 2.5,       
     "liquidity_hunter": 1.0, 
-    "alpha_x": 0.1,        
+    "alpha_x": 0.0,        # KILLED: Loser
 }
 
 HTF_TIMEFRAME = "4h"

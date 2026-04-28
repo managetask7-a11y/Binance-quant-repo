@@ -39,6 +39,23 @@ def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
         elif direction == SELL and rsi < 30:
             return False
 
+    # ── 5. MARKET VELOCITY (Intelligence) ──
+    # Don't trade if the price is 'flat' (last 4 bars < 0.2% move)
+    if len(df) >= 5:
+        recent_close = df["close"].iloc[-5]
+        price_move = abs(last["close"] - recent_close) / recent_close
+        if price_move < 0.002: # 0.2% floor
+            return False
+
+    # ── 6. EXPANSION GATE (Intelligence) ──
+    # If bands are squeezed, require volume breakout
+    bbw = last.get("bb_width", 0.1)
+    if bbw < 0.05: # Extreme Squeeze
+        vol = last.get("volume", 0)
+        vol_ma = last.get("vol_ma_20", 0)
+        if vol < vol_ma * 1.5: # Needs 150% volume to break a squeeze
+            return False
+
     return True
 
 
@@ -91,48 +108,66 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None,
                 weight *= 2.0 # Boost Alpha-X during trend expansions
 
         if sig == BUY:
-            # HTF Filter: Ignore long signals if macro trend is bearish
-            if htf_trend == -1:
-                continue
             buy_count += 1
             buy_weight += weight
             buy_strategies.append(name)
         elif sig == SELL:
-             # HTF Filter: Ignore short signals if macro trend is bullish
-            if htf_trend == 1:
-                continue
             sell_count += 1
             sell_weight += weight
             sell_strategies.append(name)
 
     atr_val = df["atr_14"].iloc[-1]
-    rsi = last.get("rsi_14", 50)
     if np.isnan(atr_val) or atr_val <= 0:
         return None
 
-    if buy_count >= min_agreement and buy_weight >= WEIGHTED_THRESHOLD and buy_count > sell_count:
-        # HTF Filter: Ignore long signals if macro trend is bearish
-        if htf_trend == -1: return None
-        # RSI Guard: Only block at extreme exhaustion levels (>85)
-        if not np.isnan(rsi) and rsi > 85: return None
-        
+    # ── ADAPTIVE CONFIDENCE ENGINE ──
+    # Metrics: Trend (ADX), Volatility (BBW), Volume expansion
+    adx_score = min(adx_val / 40.0, 1.0) # 40+ ADX is max trend
+    bbw_score = min(bbw / 0.15, 1.0)     # 0.15+ BBW is high vol
+    vol_ratio = last.get("volume", 0) / (last.get("vol_ma_20", 1) or 1)
+    vol_score = min(vol_ratio / 2.0, 1.0) # 2x volume is max
+    
+    confidence = (adx_score * 0.4) + (bbw_score * 0.3) + (vol_score * 0.3)
+    
+    # ── Intelligence: Adaptive Strike Rules ──
+    # High Confidence (>0.7) = Aggressive (2 agree, relaxed HTF)
+    # Low Confidence (<0.4) = Conservative (3 agree, strict HTF)
+    if confidence > 0.7:
+        dynamic_min = 2
+        htf_strict = False
+    elif confidence < 0.4:
+        dynamic_min = 3
+        htf_strict = True
+    else:
+        dynamic_min = max(min_agreement, 2)
+        htf_strict = True
+
+    # ── Signal Generation ──
+    if buy_count >= dynamic_min and buy_weight >= WEIGHTED_THRESHOLD and buy_count > sell_count:
+        # HTF Filter: Adaptive
+        if htf_strict:
+            if htf_trend != 1: return None # Must be strictly bullish
+        else:
+            if htf_trend == -1: return None # Just don't be strictly bearish
+
         return {
             "direction": BUY,
             "atr": float(atr_val),
-            "signal": f"CONSENSUS({buy_count} agree, w={buy_weight:.1f})",
+            "signal": f"CONFIDENCE strike ({confidence:.2f})",
             "strategies": buy_strategies,
         }
 
-    if sell_count >= min_agreement and sell_weight >= WEIGHTED_THRESHOLD and sell_count > buy_count:
-        # HTF Filter: Ignore short signals if macro trend is bullish
-        if htf_trend == 1: return None
-        # RSI Guard: Only block at extreme exhaustion levels (<15)
-        if not np.isnan(rsi) and rsi < 15: return None
-
+    if sell_count >= dynamic_min and sell_weight >= WEIGHTED_THRESHOLD and sell_count > buy_count:
+        # HTF Filter: Adaptive
+        if htf_strict:
+            if htf_trend != -1: return None # Must be strictly bearish
+        else:
+            if htf_trend == 1: return None # Just don't be strictly bullish
+            
         return {
             "direction": SELL,
             "atr": float(atr_val),
-            "signal": f"CONSENSUS({sell_count} agree, w={sell_weight:.1f})",
+            "signal": f"CONFIDENCE strike ({confidence:.2f})",
             "strategies": sell_strategies,
         }
 

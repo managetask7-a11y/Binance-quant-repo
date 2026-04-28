@@ -138,7 +138,15 @@ class BacktestEngine:
         adx = bar.get("adx_14", 0)
         is_trending = adx > 20
         
-        current_risk = self.risk_per_trade
+        # --- Institutional Risk Scaling (Drawdown Protection) ---
+        current_drawdown = (self.peak_balance - self.balance) / self.peak_balance if self.peak_balance > 0 else 0
+        risk_multiplier = 1.0
+        if current_drawdown > 0.15: # 15% DD
+            risk_multiplier = 0.5    # Cut risk by 50%
+        if current_drawdown > 0.30: # 30% DD
+            risk_multiplier = 0.2    # Cut risk by 80% (Survival Mode)
+            
+        current_risk = self.risk_per_trade * risk_multiplier
         current_tp_ratio = self.tp_rr_ratio
         
         if not is_trending:
@@ -246,12 +254,16 @@ class BacktestEngine:
 
         # Standard safety net (SL/TP)
         if not closed:
+            atr = trade.get("atr", 0)
+            # Smart Trail distance: 0.5 * ATR (adapts to volatility)
+            trail_dist = max(atr * 0.5, entry * 0.003)  # Min 0.3% floor
+            
             if direction == BUY:
                 if low <= sl:
                     exit_price, reason, closed = sl, "STOP_LOSS", True
                 elif tp1 and high >= tp1:
-                    # SUPER RUNNER: Once TP1 is hit, start trailing 0.2% below current price!
-                    new_sl = high * (1 - 0.002)
+                    # SMART RUNNER: ATR-based trailing (adapts to volatility)
+                    new_sl = high - trail_dist
                     trade["sl_price"] = max(trade["sl_price"], new_sl)
                     trade["tp1_hit"] = True
                 elif tp2 and high >= tp2:
@@ -260,8 +272,8 @@ class BacktestEngine:
                 if high >= sl:
                     exit_price, reason, closed = sl, "STOP_LOSS", True
                 elif tp1 and low <= tp1:
-                    # SUPER RUNNER: Once TP1 is hit, start trailing 0.2% above current price!
-                    new_sl = low * (1 + 0.002)
+                    # SMART RUNNER: ATR-based trailing (adapts to volatility)
+                    new_sl = low + trail_dist
                     trade["sl_price"] = min(trade["sl_price"], new_sl)
                     trade["tp1_hit"] = True
                 elif tp2 and low <= tp2:
@@ -273,25 +285,34 @@ class BacktestEngine:
             if pnl_pct > 0 and ((direction == BUY and sl < entry) or (direction == SELL and sl > entry)):
                 trade["sl_price"] = entry
 
-        # --- DYNAMIC TRAILING PROTECTION (Adaptive Regime) ---
+        # --- DYNAMIC TRAILING PROTECTION (ATR-Adaptive Regime) ---
         if not closed:
             pnl_pct = (close - entry) / entry * 100 if direction == BUY else (entry - close) / entry * 100
+            atr = trade.get("atr", 0)
             adx = bar.get("adx_14", 0)
             is_trending = adx > 20
             new_sl = None
 
+            # ATR-based profit milestones (adapt to each coin's volatility)
+            atr_pct = (atr / entry) * 100 if entry > 0 else 0.5
+
             if not is_trending:
-                # SIDEWAYS: Lock profit at 1.0%
-                if pnl_pct >= 1.0:
-                    new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
+                # SIDEWAYS: Lock profit when move exceeds 1 * ATR
+                if pnl_pct >= atr_pct * 1.0:
+                    new_sl = entry * (1 + atr_pct * 0.003) if direction == BUY else entry * (1 - atr_pct * 0.003)
             else:
-                # TRENDING: Milestone Trailing
-                if pnl_pct >= 10.0:
-                    new_sl = entry * (1 + 0.07) if direction == BUY else entry * (1 - 0.07)
-                elif pnl_pct >= 6.0:
-                    new_sl = entry * (1 + 0.03) if direction == BUY else entry * (1 - 0.03)
-                elif pnl_pct >= 5.0:
-                    new_sl = entry * (1 + 0.002) if direction == BUY else entry * (1 - 0.002)
+                # TRENDING: ATR-based milestone trailing (let runners RUN)
+                if pnl_pct >= atr_pct * 6.0:
+                    # Massive runner: lock 70% of profit
+                    lock = pnl_pct * 0.70 / 100
+                    new_sl = entry * (1 + lock) if direction == BUY else entry * (1 - lock)
+                elif pnl_pct >= atr_pct * 4.0:
+                    # Strong runner: lock 50% of profit
+                    lock = pnl_pct * 0.50 / 100
+                    new_sl = entry * (1 + lock) if direction == BUY else entry * (1 - lock)
+                elif pnl_pct >= atr_pct * 2.0:
+                    # Developing runner: lock at breakeven + 0.3%
+                    new_sl = entry * (1 + 0.003) if direction == BUY else entry * (1 - 0.003)
 
             if new_sl:
                 if (direction == BUY and new_sl > trade["sl_price"]) or \
@@ -507,6 +528,16 @@ class BacktestEngine:
             if t["pnl_usd"] > 0:
                 day_stats[day_name]["wins"] += 1
 
+        # Monthly Breakdown
+        monthly_stats = defaultdict(lambda: {"count": 0, "pnl": 0.0, "wins": 0})
+        for t in trades:
+            dt = t["entry_time"]
+            month_key = dt.strftime("%Y-%m")
+            monthly_stats[month_key]["count"] += 1
+            monthly_stats[month_key]["pnl"] += t["pnl_usd"]
+            if t["pnl_usd"] > 0:
+                monthly_stats[month_key]["wins"] += 1
+
         return {
             "total_trades": len(trades),
             "winners": len(winners),
@@ -522,6 +553,7 @@ class BacktestEngine:
             "strategy_breakdown": dict(strat_stats),
             "reason_breakdown": dict(reason_stats),
             "day_breakdown": dict(day_stats),
+            "monthly_breakdown": dict(monthly_stats),
             "trades": trades,
         }
 
@@ -646,6 +678,16 @@ def print_report(report: dict, config_label: str = "DEFAULT"):
         wr = s["wins"] / s["count"] * 100 if s["count"] > 0 else 0
         status = "[OK]" if s["pnl"] > 0 else "[X]"
         print(f"  {status} {day:<9} {s['count']:>7} {wr:>6.1f}% ${s['pnl']:>+11.2f}")
+
+    print("\n  -- Monthly Performance --")
+    month_stats = report.get("monthly_breakdown", {})
+    sorted_months = sorted(month_stats.items())
+    print(f"  {'Month':<12} {'Trades':>7} {'Win%':>7} {'Net P&L':>12}")
+    print(f"  {'-'*12} {'-'*7} {'-'*7} {'-'*12}")
+    for month, s in sorted_months:
+        wr = s["wins"] / s["count"] * 100 if s["count"] > 0 else 0
+        status = "[OK]" if s["pnl"] > 0 else "[X]"
+        print(f"  {status} {month:<9} {s['count']:>7} {wr:>6.1f}% ${s['pnl']:>+11.2f}")
 
     print("\n  -- Exit Reason Breakdown --")
     reasons = report.get("reason_breakdown", {})
