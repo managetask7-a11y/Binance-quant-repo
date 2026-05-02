@@ -1,37 +1,29 @@
+from __future__ import annotations
+
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-from azalyst.config import (
-    BUY, SELL, MIN_AGREEMENT, WEIGHTED_THRESHOLD, MULTI_WEIGHTS,
-)
+from azalyst.config import BUY, SELL, MIN_AGREEMENT, WEIGHTED_THRESHOLD, MULTI_WEIGHTS
 from azalyst.strategies import MULTI_STRATEGIES
 from azalyst.strategies.htf_filter import get_htf_trend
+from azalyst.personalities import Personality, DEFAULT_PERSONALITY
 
 
 def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
-    """
-    Entry confirmation gate — filters out weak signals.
-    Keeps: ADX trending, Volume expansion, RSI guard.
-    """
     last = df.iloc[-1]
 
-    # ── 1. TREND STRENGTH GATE ──
-    # Reduced floor to 15 to capture trends early.
     adx = last.get("adx", 0)
-    adx_50 = last.get("adx_50", 0)
-    
+
     if not np.isnan(adx) and adx < 15:
         return False
 
-    # ── 3. VOLUME CONFIRMATION ──
     vol = last.get("volume", 0)
     vol_ma = last.get("vol_ma_20", 0)
     if vol_ma > 0 and vol < vol_ma * 0.6:
         return False
 
-    # ── 4. RSI ZONE GUARD ──
     rsi = last.get("rsi_14", 50)
     if not np.isnan(rsi):
         if direction == BUY and rsi > 70:
@@ -42,19 +34,21 @@ def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
     return True
 
 
-def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None) -> Optional[dict]:
+def multi_strategy_scan(
+    df: pd.DataFrame,
+    htf_df: Optional[pd.DataFrame] = None,
+    personality: Optional[Personality] = None,
+) -> Optional[dict]:
     if len(df) < 200:
         return None
-        
+
+    p = personality or DEFAULT_PERSONALITY
+
     htf_trend = 0
     if htf_df is not None and not htf_df.empty:
         htf_trend = get_htf_trend(htf_df)
 
     last = df.iloc[-1]
-    # ── Regime Detection (BBW) ──
-    # Narrow bands = Range/Sideways, Wide bands = Trend
-    bbw = last.get("bb_width", 0.1)
-    is_range = bbw < 0.08
 
     buy_count = 0
     sell_count = 0
@@ -65,41 +59,32 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
 
     for name, func in MULTI_STRATEGIES.items():
         sig = func(df)
-        weight = MULTI_WEIGHTS.get(name, 1.0)
+        weight = p.weights.get(name, 0.0)
 
-        # ── Adaptive Regime Weighting ──
+        if weight <= 0.0:
+            continue
+
         adx_val = last.get("adx", 20)
         adx_50_val = last.get("adx_50", 20)
-        
-        # Boost during clear trends
-        if adx_val > 25:
+
+        if not np.isnan(adx_val) and adx_val > 25:
             weight *= 1.2
-            
-        # Penalize during directionless long-term markets
-        if adx_50_val < 10:
+
+        if not np.isnan(adx_50_val) and adx_50_val < 10:
             weight *= 0.5
 
-        if is_range:
-            if name in ["umar", "bb_trend", "nbb"]:
-                weight *= 0.5 
-            elif name in ["bnf", "wyckoff", "kane", "liquidity_hunter"]:
-                weight *= 1.5 
-        else:
-            if name in ["umar", "bb_trend", "nbb", "band_rider"]:
-                weight *= 1.5 
-            elif name == "alpha_x":
-                weight *= 2.0 # Boost Alpha-X during trend expansions
-
         if sig == BUY:
-            # HTF Filter: Ignore long signals if macro trend is bearish
             if htf_trend == -1:
+                continue
+            if p.directional_bias == -1:
                 continue
             buy_count += 1
             buy_weight += weight
             buy_strategies.append(name)
         elif sig == SELL:
-             # HTF Filter: Ignore short signals if macro trend is bullish
             if htf_trend == 1:
+                continue
+            if p.directional_bias == 1:
                 continue
             sell_count += 1
             sell_weight += weight
@@ -110,12 +95,14 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
     if np.isnan(atr_val) or atr_val <= 0:
         return None
 
-    if buy_count >= MIN_AGREEMENT and buy_weight >= WEIGHTED_THRESHOLD and buy_count > sell_count:
-        # HTF Filter: Ignore long signals if macro trend is bearish
-        if htf_trend == -1: return None
-        # RSI Guard: Only block at extreme exhaustion levels (>85)
-        if not np.isnan(rsi) and rsi > 85: return None
-        
+    if buy_count >= p.min_agreement and buy_weight >= p.weighted_threshold and buy_count > sell_count:
+        if htf_trend == -1:
+            return None
+        if not np.isnan(rsi) and rsi > 85:
+            return None
+        if not _check_entry_quality(df, BUY):
+            return None
+
         return {
             "direction": BUY,
             "atr": float(atr_val),
@@ -123,11 +110,13 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
             "strategies": buy_strategies,
         }
 
-    if sell_count >= MIN_AGREEMENT and sell_weight >= WEIGHTED_THRESHOLD and sell_count > buy_count:
-        # HTF Filter: Ignore short signals if macro trend is bullish
-        if htf_trend == 1: return None
-        # RSI Guard: Only block at extreme exhaustion levels (<15)
-        if not np.isnan(rsi) and rsi < 15: return None
+    if sell_count >= p.min_agreement and sell_weight >= p.weighted_threshold and sell_count > buy_count:
+        if htf_trend == 1:
+            return None
+        if not np.isnan(rsi) and rsi < 15:
+            return None
+        if not _check_entry_quality(df, SELL):
+            return None
 
         return {
             "direction": SELL,
@@ -137,4 +126,3 @@ def multi_strategy_scan(df: pd.DataFrame, htf_df: Optional[pd.DataFrame] = None)
         }
 
     return None
-

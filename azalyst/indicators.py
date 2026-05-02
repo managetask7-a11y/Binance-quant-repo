@@ -36,18 +36,11 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["bb_upper"] = df["bb_mid"] + 2.0 * bb_std
     df["bb_lower"] = df["bb_mid"] - 2.0 * bb_std
 
-    # --- Alpha-X Institutional BB (200, SD 1.5) ---
-    # SD 1.5 is the institutional standard for filtering false breakouts.
     df["bb200_mid"] = df["close"].rolling(200).mean()
     bb200_std = df["close"].rolling(200).std()
     df["bb200_upper"] = df["bb200_mid"] + 1.5 * bb200_std
     df["bb200_lower"] = df["bb200_mid"] - 1.5 * bb200_std
-    # Bandwidth for Alpha-X filter
     df["bb200_width"] = (df["bb200_upper"] - df["bb200_lower"]) / df["bb200_mid"].replace(0.0, float("nan"))
-    
-    # --- Squeeze Detector (Volatility Quantile) ---
-    # Tracks how tight the bands are relative to the last 100 candles.
-    # A value of 0.2 means the bands are tighter than they were 80% of the time.
     df["bb200_squeeze"] = df["bb200_width"].rolling(100).rank(pct=True)
 
     fast_ema = df["close"].ewm(span=12, adjust=False).mean()
@@ -64,11 +57,9 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     atr_smooth = df["atr_14"]
     df["pdi"] = 100.0 * plus_dm.ewm(alpha=1.0 / 14, adjust=False).mean() / atr_smooth.replace(0.0, float("nan"))
     df["mdi"] = 100.0 * minus_dm.ewm(alpha=1.0 / 14, adjust=False).mean() / atr_smooth.replace(0.0, float("nan"))
+    df["di_spread"] = df["pdi"] - df["mdi"]
     dx = ((df["pdi"] - df["mdi"]).abs() / (df["pdi"] + df["mdi"]).replace(0.0, float("nan"))) * 100.0
     df["adx"] = dx.ewm(alpha=1.0 / 14, adjust=False).mean()
-    
-    # --- Slow ADX (Market Sentiment) ---
-    # Used to detect long-term structural trends for 180-day stability.
     df["adx_50"] = dx.ewm(alpha=1.0 / 50, adjust=False).mean()
 
     hl2 = (df["high"] + df["low"]) / 2.0
@@ -97,7 +88,6 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df["vol_ma_20"] = df["volume"].rolling(20).mean()
 
-    # Institutional Swing Points (Alpha-X 60-period spec)
     df["local_swing_high"] = df["high"].rolling(60, center=True).max()
     df["local_swing_low"] = df["low"].rolling(60, center=True).min()
     df["swing_high"] = df["high"].rolling(5, center=True).max()
@@ -105,24 +95,19 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df["momentum_9"] = df["close"].diff(9)
 
-    # Bollinger Band Width (Regime Detector)
     df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / df["bb_mid"].replace(0.0, float("nan"))
 
-    # Stochastic RSI (Range Timing)
-    # Uses 14-period RSI as the base
     rsi_min = df["rsi_14"].rolling(14).min()
     rsi_max = df["rsi_14"].rolling(14).max()
     df["stoch_rsi_k"] = (df["rsi_14"] - rsi_min) / (rsi_max - rsi_min).replace(0.0, 1e-8)
     df["stoch_rsi_d"] = df["stoch_rsi_k"].rolling(3).mean()
 
-    # CVD (Cumulative Volume Delta) approximation
     range_hl = (df["high"] - df["low"]).replace(0.0, 1e-8)
     buy_vol = df["volume"] * (df["close"] - df["low"]) / range_hl
     sell_vol = df["volume"] * (df["high"] - df["close"]) / range_hl
-    delta = buy_vol - sell_vol
-    df["cvd"] = delta.cumsum()
+    cvd_delta = buy_vol - sell_vol
+    df["cvd"] = cvd_delta.cumsum()
 
-    # Money Flow Index (Institutional Volume)
     tp = (df["high"] + df["low"] + df["close"]) / 3.0
     mf = tp * df["volume"]
     mf_dir = np.where(tp > tp.shift(1), 1, -1)
@@ -131,9 +116,8 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     mfr = pos_mf / neg_mf.replace(0.0, float("nan"))
     df["mfi_14"] = 100.0 - (100.0 / (1.0 + mfr))
 
-    # Candle Conviction (Institutional Strength)
     candle_range = (df["high"] - df["low"]).replace(0.0, 1e-8)
-    df["conviction"] = (df["close"] - df["low"]) / candle_range # 0 (bearish) to 1 (bullish)
+    df["conviction"] = (df["close"] - df["low"]) / candle_range
     df["body_ratio"] = (df["close"] - df["open"]).abs() / candle_range
 
     return df

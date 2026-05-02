@@ -21,12 +21,14 @@ from azalyst.config import (
     MAX_SAME_DIRECTION, HTF_TIMEFRAME, HTF_CANDLE_LIMIT,
     HTF_EMA_FAST, HTF_EMA_SLOW,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ORDER_CAP_TIERS,
-    TRAILING_STOP_ENABLED
+    TRAILING_STOP_ENABLED, REGIME_BTC_SYMBOL,
 )
 from azalyst.logger import logger
 from azalyst.indicators import compute_indicators
 from azalyst.consensus import multi_strategy_scan
 from azalyst.notifications import send_alerts
+from azalyst.regime import MarketRegime, detect as detect_regime, get_regime_details
+from azalyst.personalities import get_personality, DEFAULT_PERSONALITY, Personality
 from azalyst import db
 
 
@@ -53,6 +55,8 @@ class LiveTrader:
         self.daily_profit_target = 0.0
         self.daily_target_reached = False
         self._live_prices: Dict[str, float] = {}
+        self.current_regime: MarketRegime = MarketRegime.SIDEWAYS
+        self.active_personality: Personality = DEFAULT_PERSONALITY
 
         self.config = {
             "leverage": LEVERAGE,
@@ -339,8 +343,9 @@ class LiveTrader:
             "prop_daily_loss": self.config.get("prop_daily_loss_pct", PROP_DAILY_LOSS_PCT),
             "daily_profit_target": round(self.daily_profit_target, 2),
             "daily_target_reached": self.daily_target_reached,
-            "market_state": getattr(self, "current_market_state", "medium"),
-            "scan_limit": getattr(self, "current_scan_limit", TOP_N_COINS),
+            "regime": self.current_regime.value,
+            "personality": self.active_personality.name,
+            "scan_limit": self.active_personality.scan_limit,
             "order_cap": self._apply_order_cap(),
         }
 
@@ -414,11 +419,27 @@ class LiveTrader:
     def get_equity_curve(self) -> list:
         return self.equity_curve
 
+    def _detect_regime(self):
+        try:
+            btc_df = self.fetch_ohlcv(REGIME_BTC_SYMBOL, f"{CANDLE_TF_MIN}m", 250)
+            if btc_df.empty or len(btc_df) < 200:
+                return
+            btc_df = compute_indicators(btc_df)
+            btc_htf = self.fetch_ohlcv(REGIME_BTC_SYMBOL, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
+            if not btc_htf.empty:
+                btc_htf["ema_50"] = btc_htf["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
+                btc_htf["ema_200"] = btc_htf["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
+            old_regime = self.current_regime
+            self.current_regime = detect_regime(btc_df, htf_df=btc_htf, symbol="__MARKET__")
+            self.active_personality = get_personality(self.current_regime)
+            if old_regime != self.current_regime:
+                logger.info(f"REGIME SHIFT: {old_regime.value} -> {self.current_regime.value} | Personality: {self.active_personality.name}")
+        except Exception as e:
+            logger.error(f"Regime detection failed: {e}")
+
     def _refresh_top_coins(self):
         self.last_symbol_refresh_time = time.time()
-        
-        # Use single manual limit from config (Default: TOP_N_COINS from config.py)
-        scan_limit = self.config.get("top_n_coins", TOP_N_COINS)
+        scan_limit = self.active_personality.scan_limit
         self.current_scan_limit = scan_limit
         
         logger.info(f"Refreshing top {scan_limit} coins from Binance...")
@@ -533,12 +554,13 @@ class LiveTrader:
                 )
             return
 
-        effective_cap = self._apply_order_cap()
+        effective_cap = min(self._apply_order_cap(), self.active_personality.max_open_trades)
         if len(self.open_trades) >= effective_cap:
             logger.info(f"Order cap reached ({len(self.open_trades)}/{effective_cap}). Skipping scan.")
             return
 
-        logger.info(f"Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{MAX_OPEN_TRADES} open)")
+        p = self.active_personality
+        logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{p.max_open_trades} open)")
 
         for symbol in self.symbols:
             if symbol in self.open_trades:
@@ -562,7 +584,7 @@ class LiveTrader:
                 htf_df["ema_50"] = htf_df["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
                 htf_df["ema_200"] = htf_df["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
 
-            sig = multi_strategy_scan(df, htf_df=htf_df)
+            sig = multi_strategy_scan(df, htf_df=htf_df, personality=self.active_personality)
             if sig is None:
                 continue
 
@@ -570,12 +592,11 @@ class LiveTrader:
             direction = sig["direction"]
             strategies = sig.get("strategies", [])
             
-            # 1. Directional Correlation Cap
-            if direction == BUY and len(longs) >= MAX_SAME_DIRECTION:
-                logger.info(f"   [SKIP] {symbol} LONG cap reached ({MAX_SAME_DIRECTION})")
+            if direction == BUY and len(longs) >= p.max_same_direction:
+                logger.info(f"   [SKIP] {symbol} LONG cap reached ({p.max_same_direction})")
                 continue
-            if direction == SELL and len(shorts) >= MAX_SAME_DIRECTION:
-                logger.info(f"   [SKIP] {symbol} SHORT cap reached ({MAX_SAME_DIRECTION})")
+            if direction == SELL and len(shorts) >= p.max_same_direction:
+                logger.info(f"   [SKIP] {symbol} SHORT cap reached ({p.max_same_direction})")
                 continue
 
             # 2. Strategy Exposure Limit (Alpha-X)
@@ -593,66 +614,39 @@ class LiveTrader:
         direction = sig["direction"]
         atr = sig["atr"]
         fill_price = last["close"]
+        p = self.active_personality
 
-        # --- Calculate SL/TP with NaN Protection ---
-        sl_dist = atr * self.config.get("atr_mult", ATR_MULT)
-        sl_price = fill_price - sl_dist if direction == BUY else fill_price + sl_dist
+        raw_sl_dist = atr * p.atr_mult
         
-        # Use strategy TP if available, else default to RR ratio
+        min_sl_dist = fill_price * p.sl_min_pct
+        max_sl_dist = fill_price * p.sl_max_pct
+        sl_dist = max(min_sl_dist, min(raw_sl_dist, max_sl_dist))
+
+        sl_price = fill_price - sl_dist if direction == BUY else fill_price + sl_dist
+
         tp_price = sig.get("tp_price")
         if tp_price is None or np.isnan(tp_price):
-            tp_dist = sl_dist * self.config.get("tp_rr_ratio", TP_RR_RATIO)
+            tp_dist = sl_dist * p.tp_rr_ratio
             tp_price = fill_price + tp_dist if direction == BUY else fill_price - tp_dist
 
-        # Safety: Ensure no NaN values reach DB or API
         sl_price = float(sl_price) if not np.isnan(sl_price) else fill_price * 0.95
         tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 1.05
 
-        risk_usd = self.balance * self.config["risk_per_trade"] * self.config["leverage"]
-        qty = risk_usd / fill_price
-
-        # --- Alpha-X Logic (Main.py Parity) ---
-        is_alpha = "alpha_x" in sig.get("strategies", [])
+        effective_risk = self.config["risk_per_trade"] * p.risk_multiplier
+        risk_usd = self.balance * effective_risk
         
-        # Calculate Fib Targets
-        sh = df["local_swing_high"].iloc[-1]
-        sl_low = df["local_swing_low"].iloc[-1]
-        move = sh - sl_low
-        
-        if is_alpha:
-            # 100% SPEC PARITY: SL is the pullback candle extreme
-            # Increased buffer to 0.25% for 'Sniper' win-rate improvement
-            if direction == BUY:
-                sl_price = df["low"].iloc[-2] * 0.9950 # 0.5% Safety Buffer
-                tp_price = fill_price + move * 1.618  # Primary target
-                tp1 = fill_price + move * 1.272
-                tp2 = fill_price + move * 1.618
-            else:
-                sl_price = df["high"].iloc[-2] * 1.0050 # 0.5% Safety Buffer
-                tp_price = fill_price - move * 1.618
-                tp1 = fill_price - move * 1.272
-                tp2 = fill_price - move * 1.618
-        else:
-            # --- GLOBAL FALLBACK SL/TP (For other strategies) ---
-            # Now using the same 0.5% Safety Buffer to prevent tight wick-outs
-            atr = df["atr_14"].iloc[-1]
-            if direction == BUY:
-                sl_price = df["low"].iloc[-2] * 0.9950 # 0.5% Safety Buffer
-                tp_price = fill_price + (atr * self.config["tp_rr_ratio"])
-            else:
-                sl_price = df["high"].iloc[-2] * 1.0050 # 0.5% Safety Buffer
-                tp_price = fill_price - (atr * self.config["tp_rr_ratio"])
-            tp1 = tp_price
-            tp2 = None
+        ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
+        max_qty = (self.balance * self.config["leverage"]) / fill_price
+        qty = min(ideal_qty, max_qty)
 
-        # --- FINAL SL/TP SAFETY CAP (Enforce Config Limits) ---
-        max_sl_dist = fill_price * SL_MAX_PCT
+        tp1 = tp_price
+        tp2 = None
+
+        max_sl_dist = fill_price * p.sl_max_pct
         if direction == BUY:
             min_allowed_sl = fill_price - max_sl_dist
             if sl_price < min_allowed_sl or np.isnan(sl_price):
                 sl_price = min_allowed_sl
-            
-            # Ensure TP levels are valid numbers
             tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 1.10
             tp1 = float(tp1) if not (tp1 is None or np.isnan(tp1)) else fill_price * 1.05
             tp2 = float(tp2) if not (tp2 is None or np.isnan(tp2)) else fill_price * 1.08
@@ -660,8 +654,6 @@ class LiveTrader:
             max_allowed_sl = fill_price + max_sl_dist
             if sl_price > max_allowed_sl or np.isnan(sl_price):
                 sl_price = max_allowed_sl
-                
-            # Ensure TP levels are valid numbers
             tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 0.90
             tp1 = float(tp1) if not (tp1 is None or np.isnan(tp1)) else fill_price * 0.95
             tp2 = float(tp2) if not (tp2 is None or np.isnan(tp2)) else fill_price * 0.92
@@ -761,24 +753,18 @@ class LiveTrader:
             tp = trade["tp_price"]
             entry = trade["entry_price"]
 
-            # --- DYNAMIC TRAILING PROTECTION (Follow the Price) ---
-            # Trigger: 3.0% profit. Trail Distance: 2.0%
-            if self.config.get("trailing_stop_enabled", TRAILING_STOP_ENABLED):
-                TRAIL_TRIGGER = 0.030
-                TRAIL_DIST = 0.020
-                
+            p = self.active_personality
+            if p.trailing_enabled:
                 pnl_move = (current_price - entry) / entry
                 if direction == BUY:
-                    if pnl_move >= TRAIL_TRIGGER:
-                        # SL follows at TRAIL_DIST (2%) below the highest price reached
-                        new_sl = trade["max_price"] * (1 - TRAIL_DIST)
+                    if pnl_move >= p.trail_trigger_pct:
+                        new_sl = trade["max_price"] * (1 - p.trail_distance_pct)
                         if new_sl > trade["sl_price"]:
                             trade["sl_price"] = new_sl
                             logger.info(f"   [TRAIL] {symbol} SL followed up to ${new_sl:.4f}")
                 else:
-                    if pnl_move <= -TRAIL_TRIGGER:
-                        # SL follows at TRAIL_DIST (2%) above the lowest price reached
-                        new_sl = trade["min_price"] * (1 + TRAIL_DIST)
+                    if pnl_move <= -p.trail_trigger_pct:
+                        new_sl = trade["min_price"] * (1 + p.trail_distance_pct)
                         if new_sl < trade["sl_price"]:
                             trade["sl_price"] = new_sl
                             logger.info(f"   [TRAIL] {symbol} SL followed down to ${new_sl:.4f}")
@@ -1019,6 +1005,7 @@ class LiveTrader:
             while self.running:
                 try:
                     self._refresh_config()
+                    self._detect_regime()
                     self._sync_live_balance()
 
                     if time.time() - self.last_symbol_refresh_time >= 4 * 3600:
