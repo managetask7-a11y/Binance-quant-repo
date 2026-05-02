@@ -108,7 +108,7 @@ class BacktestEngine:
         ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
         
         # But we cannot buy more than our max leverage allows
-        max_qty = (self.balance * self.leverage) / fill
+        max_qty = (self.balance * p.leverage) / fill
         qty = min(ideal_qty, max_qty)
         
         tp_dist = sl_dist * p.tp_rr_ratio
@@ -179,10 +179,6 @@ class BacktestEngine:
                 elif tp1 and low <= tp1:
                     exit_price, reason, closed = tp1, "TAKE_PROFIT_1", True
 
-        if not closed and trade["scan_count"] >= self.be_scans:
-            pnl_pct = (close - entry) / entry * 100 if direction == BUY else (entry - close) / entry * 100
-            if pnl_pct > 0 and ((direction == BUY and sl < entry) or (direction == SELL and sl > entry)):
-                trade["sl_price"] = entry
 
         p = self.active_personality
         if not closed and p.trailing_enabled:

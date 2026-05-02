@@ -636,7 +636,7 @@ class LiveTrader:
         risk_usd = self.balance * effective_risk
         
         ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
-        max_qty = (self.balance * self.config["leverage"]) / fill_price
+        max_qty = (self.balance * p.leverage) / fill_price
         qty = min(ideal_qty, max_qty)
 
         tp1 = tp_price
@@ -685,6 +685,11 @@ class LiveTrader:
         if self.broker.is_live:
             try:
                 side = "buy" if direction == BUY else "sell"
+                
+                # Dynamically set leverage based on Personality before executing
+                logger.info(f"Setting {symbol} leverage to {p.leverage}x for {p.name}")
+                self.broker.set_leverage(symbol, p.leverage)
+                
                 # 1. Place Entry
                 self.broker.place_market_order(symbol, side, qty)
                 
