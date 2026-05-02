@@ -118,6 +118,13 @@ def multi_strategy_scan(
         if not _check_entry_quality(df, SELL):
             return None
 
+        # Momentum exhaustion filter: don't short after a crash already happened
+        # If price dropped > 2x ATR in last 5 candles, the move is exhausted
+        if len(df) >= 6:
+            recent_drop = df["close"].iloc[-6] - df["close"].iloc[-1]
+            if recent_drop > 2.0 * atr_val:
+                return None
+
         return {
             "direction": SELL,
             "atr": float(atr_val),

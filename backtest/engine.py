@@ -260,7 +260,7 @@ class BacktestEngine:
             if bar_counter % scan_every_n != 0:
                 continue
 
-            if bar_counter % (scan_every_n * 10) == 0:
+            if bar_counter % (scan_every_n * 8) == 0:
                 self._detect_regime_at_bar(all_data, htf_data, t)
 
             p = self.active_personality

@@ -29,7 +29,7 @@ class Personality:
 PERSONALITIES: dict[MarketRegime, Personality] = {
 
     # ── STRONG UPTREND ───────────────────────────────────────────
-    # Trend-following power: umar + nbb dominate. High risk for big wins.
+    # Breakout: nbb + umar + rsi_divergence for trend continuation.
     MarketRegime.STRONG_UPTREND: Personality(
         name="Momentum Rider",
         regime=MarketRegime.STRONG_UPTREND,
@@ -50,6 +50,8 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "band_rider": 3.0,
             "liquidity_hunter": 0.0,
             "alpha_x": 0.0,
+            "vwap_bounce": 0.0,
+            "rsi_divergence": 3.0,
         },
         atr_mult=1.8,
         tp_rr_ratio=3.0,
@@ -69,7 +71,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
     ),
 
     # ── WEAK UPTREND ─────────────────────────────────────────────
-    # umar dominates, nbb active. No kane/wyckoff. Higher risk to capitalize.
+    # Mix of trend + reversion. vwap_bounce + rsi_div add trade volume.
     MarketRegime.WEAK_UPTREND: Personality(
         name="Cautious Bull",
         regime=MarketRegime.WEAK_UPTREND,
@@ -90,17 +92,19 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "band_rider": 2.0,
             "liquidity_hunter": 0.0,
             "alpha_x": 0.0,
+            "vwap_bounce": 3.0,
+            "rsi_divergence": 3.0,
         },
-        atr_mult=1.4,
-        tp_rr_ratio=2.5,
+        atr_mult=1.2,
+        tp_rr_ratio=2.0,
         sl_min_pct=0.015,
         sl_max_pct=0.03,
         trailing_enabled=True,
-        trail_trigger_pct=0.025,
+        trail_trigger_pct=0.020,
         trail_distance_pct=0.015,
         max_open_trades=8,
         max_same_direction=6,
-        risk_multiplier=2.0,
+        risk_multiplier=1.0,
         min_agreement=2,
         weighted_threshold=5.0,
         directional_bias=1,
@@ -109,8 +113,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
     ),
 
     # ── SIDEWAYS ─────────────────────────────────────────────────
-    # Mean reversion: jadecap + liquidity_hunter. NO trend strategies.
-    # nbb DISABLED (loses in chop). Low risk, conservative.
+    # Mean reversion heavy: vwap_bounce is the star here + jadecap.
     MarketRegime.SIDEWAYS: Personality(
         name="Range Sniper",
         regime=MarketRegime.SIDEWAYS,
@@ -131,6 +134,8 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "band_rider": 0.0,
             "liquidity_hunter": 4.0,
             "alpha_x": 0.0,
+            "vwap_bounce": 4.0,
+            "rsi_divergence": 0.0,
         },
         atr_mult=0.8,
         tp_rr_ratio=2.0,
@@ -150,8 +155,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
     ),
 
     # ── WEAK DOWNTREND ───────────────────────────────────────────
-    # Jadecap shines in chop/bear. nbb DISABLED (dies in bear chop).
-    # umar moderate. Conservative risk.
+    # Mean reversion: jadecap + vwap_bounce. Conservative.
     MarketRegime.WEAK_DOWNTREND: Personality(
         name="Defensive Bear",
         regime=MarketRegime.WEAK_DOWNTREND,
@@ -172,6 +176,8 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "band_rider": 0.0,
             "liquidity_hunter": 4.0,
             "alpha_x": 0.0,
+            "vwap_bounce": 4.0,
+            "rsi_divergence": 0.0,
         },
         atr_mult=1.2,
         tp_rr_ratio=2.5,
@@ -191,8 +197,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
     ),
 
     # ── STRONG DOWNTREND ─────────────────────────────────────────
-    # Full conviction SHORT. umar + nbb for trend following down.
-    # High risk for big bear moves.
+    # Breakout SHORT: nbb + umar + rsi_divergence for continuation.
     MarketRegime.STRONG_DOWNTREND: Personality(
         name="Crisis Alpha",
         regime=MarketRegime.STRONG_DOWNTREND,
@@ -213,17 +218,19 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "band_rider": 0.0,
             "liquidity_hunter": 0.0,
             "alpha_x": 0.0,
+            "vwap_bounce": 0.0,
+            "rsi_divergence": 3.0,
         },
-        atr_mult=1.0,
-        tp_rr_ratio=3.0,
+        atr_mult=1.5,
+        tp_rr_ratio=2.0,
         sl_min_pct=0.015,
         sl_max_pct=0.02,
         trailing_enabled=True,
-        trail_trigger_pct=0.020,
+        trail_trigger_pct=0.015,
         trail_distance_pct=0.010,
         max_open_trades=4,
         max_same_direction=4,
-        risk_multiplier=3.0,
+        risk_multiplier=1.5,
         min_agreement=2,
         weighted_threshold=5.0,
         directional_bias=-1,

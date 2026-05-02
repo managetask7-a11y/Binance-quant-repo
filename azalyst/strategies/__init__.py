@@ -1,5 +1,6 @@
 from . import zamco, bnf, jadecap, marci, nbb, umar, kane, liquidity_hunter, alpha_x
 from . import fvg, ote, cvd_divergence, wyckoff, cbg, bb_trend, band_rider
+from . import vwap_bounce, rsi_divergence
 
 MULTI_STRATEGIES = {
     "zamco": zamco.signal,
@@ -18,4 +19,6 @@ MULTI_STRATEGIES = {
     "band_rider": band_rider.signal,
     "liquidity_hunter": liquidity_hunter.signal,
     "alpha_x": alpha_x.signal,
+    "vwap_bounce": vwap_bounce.signal,
+    "rsi_divergence": rsi_divergence.signal,
 }
