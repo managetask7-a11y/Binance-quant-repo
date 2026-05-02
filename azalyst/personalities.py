@@ -28,6 +28,8 @@ class Personality:
 
 PERSONALITIES: dict[MarketRegime, Personality] = {
 
+    # ── STRONG UPTREND ───────────────────────────────────────────
+    # Trend-following power: umar + nbb dominate. High risk for big wins.
     MarketRegime.STRONG_UPTREND: Personality(
         name="Momentum Rider",
         regime=MarketRegime.STRONG_UPTREND,
@@ -45,7 +47,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "wyckoff": 0.0,
             "cbg": 0.0,
             "bb_trend": 0.0,
-            "band_rider": 3.5,
+            "band_rider": 3.0,
             "liquidity_hunter": 0.0,
             "alpha_x": 0.0,
         },
@@ -66,12 +68,14 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         leverage=20,
     ),
 
+    # ── WEAK UPTREND ─────────────────────────────────────────────
+    # umar dominates, nbb active. No kane/wyckoff. Higher risk to capitalize.
     MarketRegime.WEAK_UPTREND: Personality(
         name="Cautious Bull",
         regime=MarketRegime.WEAK_UPTREND,
         weights={
-            "bnf": 3.0,
-            "nbb": 0.0,
+            "bnf": 2.0,
+            "nbb": 3.0,
             "kane": 0.0,
             "umar": 4.0,
             "zamco": 0.0,
@@ -83,8 +87,8 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "wyckoff": 0.0,
             "cbg": 0.0,
             "bb_trend": 0.0,
-            "band_rider": 2.5,
-            "liquidity_hunter": 3.0,
+            "band_rider": 2.0,
+            "liquidity_hunter": 0.0,
             "alpha_x": 0.0,
         },
         atr_mult=1.4,
@@ -96,7 +100,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         trail_distance_pct=0.015,
         max_open_trades=8,
         max_same_direction=6,
-        risk_multiplier=1.5,
+        risk_multiplier=2.0,
         min_agreement=2,
         weighted_threshold=5.0,
         directional_bias=1,
@@ -104,6 +108,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         leverage=20,
     ),
 
+    # ── SIDEWAYS ─────────────────────────────────────────────────
+    # Mean reversion: jadecap + liquidity_hunter. NO trend strategies.
+    # nbb DISABLED (loses in chop). Low risk, conservative.
     MarketRegime.SIDEWAYS: Personality(
         name="Range Sniper",
         regime=MarketRegime.SIDEWAYS,
@@ -111,9 +118,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "bnf": 3.0,
             "nbb": 0.0,
             "kane": 0.0,
-            "umar": 4.0,
+            "umar": 3.0,
             "zamco": 0.0,
-            "jadecap": 3.0,
+            "jadecap": 4.0,
             "marci": 0.0,
             "fvg": 0.0,
             "ote": 0.0,
@@ -142,6 +149,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         leverage=20,
     ),
 
+    # ── WEAK DOWNTREND ───────────────────────────────────────────
+    # Jadecap shines in chop/bear. nbb DISABLED (dies in bear chop).
+    # umar moderate. Conservative risk.
     MarketRegime.WEAK_DOWNTREND: Personality(
         name="Defensive Bear",
         regime=MarketRegime.WEAK_DOWNTREND,
@@ -149,9 +159,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "bnf": 3.0,
             "nbb": 0.0,
             "kane": 0.0,
-            "umar": 4.0,
+            "umar": 3.0,
             "zamco": 0.0,
-            "jadecap": 3.0,
+            "jadecap": 4.0,
             "marci": 0.0,
             "fvg": 0.0,
             "ote": 0.0,
@@ -159,8 +169,8 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "wyckoff": 0.0,
             "cbg": 0.0,
             "bb_trend": 0.0,
-            "band_rider": 0.3,
-            "liquidity_hunter": 3.0,
+            "band_rider": 0.0,
+            "liquidity_hunter": 4.0,
             "alpha_x": 0.0,
         },
         atr_mult=1.2,
@@ -172,7 +182,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         trail_distance_pct=0.015,
         max_open_trades=6,
         max_same_direction=5,
-        risk_multiplier=1.5,
+        risk_multiplier=1.0,
         min_agreement=2,
         weighted_threshold=5.0,
         directional_bias=-1,
@@ -180,6 +190,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         leverage=20,
     ),
 
+    # ── STRONG DOWNTREND ─────────────────────────────────────────
+    # Full conviction SHORT. umar + nbb for trend following down.
+    # High risk for big bear moves.
     MarketRegime.STRONG_DOWNTREND: Personality(
         name="Crisis Alpha",
         regime=MarketRegime.STRONG_DOWNTREND,
