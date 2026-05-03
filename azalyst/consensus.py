@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from azalyst.config import BUY, SELL, MIN_AGREEMENT, WEIGHTED_THRESHOLD, MULTI_WEIGHTS
+from azalyst.config import BUY, SELL, HOLD, MIN_AGREEMENT, WEIGHTED_THRESHOLD, MULTI_WEIGHTS
 from azalyst.strategies import MULTI_STRATEGIES
 from azalyst.strategies.htf_filter import get_htf_trend
 from azalyst.personalities import Personality, DEFAULT_PERSONALITY
@@ -26,9 +26,9 @@ def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
 
     rsi = last.get("rsi_14", 50)
     if not np.isnan(rsi):
-        if direction == BUY and rsi > 70:
+        if direction == BUY and rsi > 75:
             return False
-        elif direction == SELL and rsi < 30:
+        elif direction == SELL and rsi < 25:
             return False
 
     return True
@@ -58,20 +58,16 @@ def multi_strategy_scan(
     sell_strategies = []
 
     for name, func in MULTI_STRATEGIES.items():
-        sig = func(df)
         weight = p.weights.get(name, 0.0)
-
         if weight <= 0.0:
             continue
 
+        sig = func(df)
+
         adx_val = last.get("adx", 20)
-        adx_50_val = last.get("adx_50", 20)
 
         if not np.isnan(adx_val) and adx_val > 25:
             weight *= 1.2
-
-        if not np.isnan(adx_50_val) and adx_50_val < 10:
-            weight *= 0.5
 
         if sig == BUY:
             if htf_trend == -1:
@@ -98,7 +94,7 @@ def multi_strategy_scan(
     if buy_count >= p.min_agreement and buy_weight >= p.weighted_threshold and buy_count > sell_count:
         if htf_trend == -1:
             return None
-        if not np.isnan(rsi) and rsi > 85:
+        if not np.isnan(rsi) and rsi > 80:
             return None
         if not _check_entry_quality(df, BUY):
             return None
@@ -113,13 +109,11 @@ def multi_strategy_scan(
     if sell_count >= p.min_agreement and sell_weight >= p.weighted_threshold and sell_count > buy_count:
         if htf_trend == 1:
             return None
-        if not np.isnan(rsi) and rsi < 15:
+        if not np.isnan(rsi) and rsi < 20:
             return None
         if not _check_entry_quality(df, SELL):
             return None
 
-        # Momentum exhaustion filter: don't short after a crash already happened
-        # If price dropped > 2x ATR in last 5 candles, the move is exhausted
         if len(df) >= 6:
             recent_drop = df["close"].iloc[-6] - df["close"].iloc[-1]
             if recent_drop > 2.0 * atr_val:

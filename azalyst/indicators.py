@@ -84,7 +84,8 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     tp = (df["high"] + df["low"] + df["close"]) / 3.0
     tpv = tp * df["volume"]
-    df["vwap"] = tpv.cumsum() / df["volume"].replace(0.0, float("nan")).cumsum()
+    vwap_window = 96
+    df["vwap"] = tpv.rolling(vwap_window, min_periods=1).sum() / df["volume"].replace(0.0, float("nan")).rolling(vwap_window, min_periods=1).sum()
 
     df["vol_ma_20"] = df["volume"].rolling(20).mean()
 
