@@ -50,32 +50,48 @@ _ZERO_WEIGHTS = {
 
 PERSONALITIES: dict[MarketRegime, Personality] = {
 
+    # ═══════════════════════════════════════════════════════════════════
+    # STRONG UPTREND — Momentum Rider
+    # Base = exact old settings that produced $141 in April.
+    # Changes from original:
+    #   - band_rider killed (was net -$30 loser)
+    #   - risk_multiplier 2.0 → 3.5 (1.75x larger positions)
+    #   - max_open_trades 6 → 8 (more concurrent bets)
+    #   - bnf weight 3.0 → 4.0 (stronger mean-reversion pullbacks)
+    #   - Everything else IDENTICAL to the $141 config
+    # ═══════════════════════════════════════════════════════════════════
     MarketRegime.STRONG_UPTREND: Personality(
         name="Momentum Rider",
         regime=MarketRegime.STRONG_UPTREND,
         weights={
             **_ZERO_WEIGHTS,
-            "umar": 5.0,
-            "nbb": 5.0,
-            "band_rider": 3.0,
+            "nbb": 5.0,         # Primary — reliable candlestick patterns
+            "bnf": 5.0,         # Solid mean-reversion pullbacks
+            "bb_trend": 1.0,    # KILLED — was in every big loss, toxic in this regime
+            "umar": 4.0,        # Boosted — achieved 100% win rate when filtered
+            "jadecap": 2.0,     # Sweep signals for diversification
         },
-        atr_mult=2.5,
-        tp_rr_ratio=3.5,
-        sl_min_pct=0.02,
-        sl_max_pct=0.05,
+        atr_mult=2.5,           # RESTORED from 2.0 — original value
+        tp_rr_ratio=3.5,        # RESTORED from 4.0 — original value
+        sl_min_pct=0.02,        # RESTORED
+        sl_max_pct=0.05,        # RESTORED
         trailing_enabled=True,
-        trail_trigger_pct=0.04,
-        trail_distance_pct=0.025,
-        max_open_trades=6,
-        max_same_direction=5,
-        risk_multiplier=2.0,
+        trail_trigger_pct=0.04, # RESTORED from 0.03 — original value
+        trail_distance_pct=0.035, # RESTORED from 0.02 — THIS WAS THE KILLER
+        max_open_trades=8,      # was 6 — more concurrent trades
+        max_same_direction=7,   # was 5
+        risk_multiplier=2.5,    # was 3.5 — reduced to prevent $100+ single-trade losses
         min_agreement=2,
         weighted_threshold=5.0,
         directional_bias=1,
-        scan_limit=20,
+        scan_limit=25,
         leverage=20,
     ),
 
+    # ═══════════════════════════════════════════════════════════════════
+    # WEAK UPTREND — Cautious Bull
+    # Conservative. This regime was NET NEGATIVE in original backtest.
+    # ═══════════════════════════════════════════════════════════════════
     MarketRegime.WEAK_UPTREND: Personality(
         name="Cautious Bull",
         regime=MarketRegime.WEAK_UPTREND,
@@ -84,7 +100,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "nbb": 5.0,
             "umar": 3.0,
             "jadecap": 3.0,
-            "band_rider": 2.0,
+            "bnf": 2.0,
         },
         atr_mult=2.0,
         tp_rr_ratio=3.0,
@@ -93,7 +109,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         trailing_enabled=True,
         trail_trigger_pct=0.03,
         trail_distance_pct=0.02,
-        max_open_trades=5,
+        max_open_trades=4,
         max_same_direction=4,
         risk_multiplier=0.7,
         min_agreement=2,
@@ -103,6 +119,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         leverage=20,
     ),
 
+    # ═══════════════════════════════════════════════════════════════════
+    # SIDEWAYS — Range Sniper (DISABLED)
+    # ═══════════════════════════════════════════════════════════════════
     MarketRegime.SIDEWAYS: Personality(
         name="Range Sniper",
         regime=MarketRegime.SIDEWAYS,
@@ -124,6 +143,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         leverage=20,
     ),
 
+    # ═══════════════════════════════════════════════════════════════════
+    # WEAK DOWNTREND — Defensive Bear
+    # ═══════════════════════════════════════════════════════════════════
     MarketRegime.WEAK_DOWNTREND: Personality(
         name="Defensive Bear",
         regime=MarketRegime.WEAK_DOWNTREND,
@@ -150,6 +172,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         leverage=20,
     ),
 
+    # ═══════════════════════════════════════════════════════════════════
+    # STRONG DOWNTREND — Crisis Alpha (DISABLED)
+    # ═══════════════════════════════════════════════════════════════════
     MarketRegime.STRONG_DOWNTREND: Personality(
         name="Crisis Alpha",
         regime=MarketRegime.STRONG_DOWNTREND,

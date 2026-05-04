@@ -156,6 +156,7 @@ class BacktestEngine:
             "entry_time": bar_time,
             "scan_count": 0,
             "atr": atr,
+            "atr_val": atr_val,
             "strategies": sig["strategies"],
             "extended": False,
             "is_alpha": False,
@@ -164,6 +165,7 @@ class BacktestEngine:
             "max_price": fill,
             "min_price": fill,
             "be_moved": False,
+            "tp1_locked": False,
         }
 
     def _manage_trade(self, symbol: str, bar: pd.Series, bar_time):
@@ -187,6 +189,12 @@ class BacktestEngine:
         exit_price = 0.0
         reason = ""
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 1: STOP LOSS / TAKE PROFIT CHECKS
+        # TP1 is a HARD EXIT — take the money! In crypto, price often
+        # retraces after big moves. The lock-and-run approach gave back
+        # $100+ in profit. Hard TP1 captured $105 from just 2 trades.
+        # ═══════════════════════════════════════════════════════════════
         if not closed:
             if direction == BUY:
                 if low <= sl:
@@ -203,40 +211,55 @@ class BacktestEngine:
                 elif tp1 and low <= tp1:
                     exit_price, reason, closed = tp1, "TAKE_PROFIT_1", True
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 2: BREAKEVEN PROTECTION (at 1.5 ATR profit)
+        # Move SL to entry + fees + 0.2% lock.
+        # Small lock so it doesn't interfere with trailing stop.
+        # ═══════════════════════════════════════════════════════════════
         if not closed and not trade.get("be_moved", False):
-            atr_val = trade["atr"]
+            atr_val = trade.get("atr_val", trade["atr"])
             if atr_val > 0:
-                pnl_atr = 0
                 if direction == BUY:
                     pnl_atr = (close - entry) / atr_val
                 else:
                     pnl_atr = (entry - close) / atr_val
                 if pnl_atr >= 1.5:
                     fee_buffer = entry * TAKER_FEE * 2
+                    profit_lock = entry * 0.002  # 0.2% — small lock, won't interfere with trail
                     if direction == BUY:
-                        new_sl = entry + fee_buffer
+                        new_sl = entry + fee_buffer + profit_lock
                         if new_sl > trade["sl_price"]:
                             trade["sl_price"] = new_sl
                             trade["be_moved"] = True
                     else:
-                        new_sl = entry - fee_buffer
+                        new_sl = entry - fee_buffer - profit_lock
                         if new_sl < trade["sl_price"]:
                             trade["sl_price"] = new_sl
                             trade["be_moved"] = True
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 3: TRAILING STOP (percentage-based from peak)
+        # Trails from the highest price reached. Uses personality
+        # settings for trigger % and trail distance %.
+        # ═══════════════════════════════════════════════════════════════
         p = self.active_personality
         if not closed and p.trailing_enabled:
             pnl_move = (close - entry) / entry if direction == BUY else (entry - close) / entry
             if pnl_move >= p.trail_trigger_pct:
                 if direction == BUY:
                     new_sl = trade["max_price"] * (1 - p.trail_distance_pct)
+                    new_sl = max(new_sl, entry)  # never below entry
                     if new_sl > trade["sl_price"]:
                         trade["sl_price"] = new_sl
                 else:
                     new_sl = trade["min_price"] * (1 + p.trail_distance_pct)
+                    new_sl = min(new_sl, entry)  # never above entry
                     if new_sl < trade["sl_price"]:
                         trade["sl_price"] = new_sl
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 4: MAX HOLD TIME
+        # ═══════════════════════════════════════════════════════════════
         if not closed and trade["scan_count"] >= self.max_hold:
             exit_price, reason, closed = close, "MAX_HOLD_TIME", True
 

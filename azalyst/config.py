@@ -53,7 +53,7 @@ MULTI_WEIGHTS = {
     "wyckoff": 1.5,
     "cbg": 1.2,
     "bb_trend": 1.8,
-    "band_rider": 2.5,
+    "band_rider": 0.0,
     "liquidity_hunter": 3.0,
     "alpha_x": 0.0,
 }
@@ -72,6 +72,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 EXCLUDE_SYMBOLS = {
     "USDCUSDT", "TUSDUSDT", "USDPUSDT", "EURUSDT", "FDUSDUSDT",
     "DAIUSDT", "BUSDUSDT", "PAXGUSDT", "USDDUSDT",
+    "DOGEUSDT",  # Structural negative expectancy: 20% WR, -$75.77 in backtest
 }
 MIN_VOLUME_MA = 70000
 TOP_N_COINS = 20
