@@ -980,6 +980,37 @@ class LiveTrader:
         self.daily_target_reached = False
         logger.info(f"Manual Daily Reset performed. New starting balance: ${self.balance:.2f}")
 
+    def manual_reset_all_history(self):
+        """Wipes all trade history and equity logs for a total clean start"""
+        if not self.user_id:
+            return
+            
+        from azalyst import db
+        mode = "live" if self.broker.is_live else "dry_run"
+        
+        # 1. Clear trades from DB
+        db.get_client().table("trades").delete().eq("user_id", self.user_id).eq("mode", mode).execute()
+        
+        # 2. Clear equity logs from DB
+        db.get_client().table("equity_log").delete().eq("user_id", self.user_id).eq("mode", mode).execute()
+        
+        # 3. Clear local state
+        self.closed_trades.clear()
+        self.equity_curve.clear()
+        self.daily_pnl = 0.0
+        
+        # 4. Sync balance to reset starting point
+        if self.broker.is_live:
+            self._sync_live_balance()
+            self.initial_balance = self.balance
+            self.daily_start_balance = self.balance
+        else:
+            self.initial_balance = 100.0 # Reset to default for dry run
+            self.balance = 100.0
+            self.daily_start_balance = 100.0
+            
+        logger.info(f"🔥 TOTAL HISTORY RESET for user {self.user_id} ({mode} mode). Starting fresh.")
+
     def print_status(self):
         logger.info(f"Balance: ${self.balance:.2f} | Open: {len(self.open_trades)} | "
                      f"Closed: {len(self.closed_trades)} | Daily PnL: ${self.daily_pnl:+.2f}")

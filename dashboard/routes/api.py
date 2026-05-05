@@ -195,6 +195,20 @@ def api_reset_daily():
         return jsonify({"error": str(e)}), 500
 
 
+@api_bp.route("/api/trading/reset_all", methods=["POST"])
+@login_required
+def api_reset_all():
+    if not _verify_user():
+        return jsonify({"error": "Unauthorized"}), 403
+    try:
+        if _trader_instance:
+            _trader_instance.manual_reset_all_history()
+            return jsonify({"success": True})
+        return jsonify({"error": "Trader instance not found"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @api_bp.route("/api/wallet", methods=["GET"])
 @login_required
 def api_wallet():

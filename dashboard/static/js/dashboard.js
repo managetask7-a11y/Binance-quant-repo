@@ -170,6 +170,32 @@
     }
     window.manualResetDaily = manualResetDaily;
 
+    async function manualResetAll() {
+        if (!confirm("🚨 WARNING: This will PERMANENTLY WIPE all trade history and equity logs for this account. This cannot be undone.\n\nAre you sure you want to hard reset everything?")) return;
+        
+        const btn = $("hardResetBtn");
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "WIPING EVERYTHING...";
+        
+        try {
+            const res = await postJSON("/api/trading/reset_all", {});
+            if (res && res.success) {
+                alert("🔥 Total history wiped successfully. Starting with a fresh slate!");
+                $("configModalOverlay").classList.remove("active");
+                location.reload(); // Hard reload to clear all charts and tables
+            } else {
+                alert(res ? res.error : "Wipe failed");
+            }
+        } catch (e) {
+            alert("Connection error");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = originalText;
+        }
+    }
+    window.manualResetAll = manualResetAll;
+
     async function togglePause() {
         var btn = $("pauseResumeBtn");
         var isPaused = btn.textContent.includes("Resume");

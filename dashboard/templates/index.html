@@ -341,6 +341,12 @@
             </div>
             <p class="text-[0.68rem] text-loss mt-4 hidden" id="configError"></p>
         </div>
+        <div class="px-6 py-4 border-t border-white/[0.06] bg-loss/[0.02]">
+            <button class="w-full py-2.5 rounded-[10px] text-[0.7rem] font-bold uppercase tracking-widest text-loss/60 border border-loss/20 hover:border-loss/60 hover:text-loss transition-all cursor-pointer" id="hardResetBtn" onclick="manualResetAll()">
+                🔥 Hard Reset: Wipe All History
+            </button>
+            <p class="text-[0.6rem] text-gray-600 mt-2 text-center">Wipes all trade history and equity logs for a total clean start.</p>
+        </div>
         <div class="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
             <button class="flex-1 py-2.5 rounded-[10px] text-sm font-semibold bg-white/[0.04] border border-white/[0.06] text-gray-400 hover:bg-white/[0.08] hover:text-gray-200 transition-all cursor-pointer" id="cancelConfig">Cancel</button>
             <button class="flex-1 py-2.5 rounded-[10px] text-sm font-semibold bg-gradient-to-r from-accent-purple to-accent-cyan text-white border-none hover:-translate-y-px hover:shadow-[0_4px_20px_rgba(139,92,246,0.35)] transition-all cursor-pointer" id="saveConfig">Save Strategy</button>
