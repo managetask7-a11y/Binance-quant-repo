@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from azalyst.config import (
     LEVERAGE, RISK_PER_TRADE, ATR_MULT, TP_RR_RATIO,
     SL_MIN_PCT, SL_MAX_PCT, MAX_OPEN_TRADES, MAX_HOLD_SCANS,
-    BREAKEVEN_AFTER_SCANS, MAX_SAME_DIRECTION,
+    BREAKEVEN_AFTER_SCANS, MAX_SAME_DIRECTION, GOLD_COINS
 )
 from backtest.data import DataProvider
 from backtest.engine import BacktestEngine
@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--end-date", type=str, default=None, help="End date (YYYY-MM-DD, default: today)")
     parser.add_argument("--top-coins", type=int, default=25, help="Number of top coins (default: 25)")
     parser.add_argument("--dynamic-top", action="store_true", help="Enable dynamic symbol selection during backtest")
+    parser.add_argument("--gold-list", action="store_true", help="Use the hardcoded Gold List of 30 high-quality coins")
     parser.add_argument("--scan-bars", type=int, default=2, help="Scan every N bars (default: 2)")
     parser.add_argument("--no-regime", action="store_true", help="Disable regime adaptation")
     parser.add_argument("--clear-cache", action="store_true", help="Clear cached data and exit")
@@ -65,9 +66,17 @@ def main():
 
     provider = DataProvider()
     
-    # If dynamic top is enabled, fetch a larger pool (100 coins)
-    fetch_count = 100 if args.dynamic_top else args.top_coins
-    symbols = provider.get_top_symbols(n=fetch_count)
+    if args.gold_list:
+        print("  [GOLD LIST MODE] Using hardcoded list of high-quality coins.")
+        symbols = GOLD_COINS
+    else:
+        # If top_coins is 0, fetch ALL symbols. Otherwise, if dynamic_top is enabled, fetch 100.
+        if args.top_coins == 0:
+            fetch_count = 0
+        else:
+            fetch_count = 100 if args.dynamic_top else args.top_coins
+        symbols = provider.get_top_symbols(n=fetch_count)
+        
     all_data, htf_data = provider.prepare_backtest_data(symbols, start_date, end_date)
 
     config = _build_config()
