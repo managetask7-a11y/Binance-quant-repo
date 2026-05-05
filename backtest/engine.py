@@ -295,8 +295,12 @@ class BacktestEngine:
 
         self.cooldown[symbol] = self._COOLDOWN_BARS
 
-    def run(self, all_data: dict, htf_data: dict, start_date, end_date, scan_every_n: int = 2):
+    def run(self, all_data: dict, htf_data: dict, start_date, end_date, 
+            scan_every_n: int = 2, dynamic_top: bool = False, top_n: int = 20):
         t0 = time.time()
+        self.active_symbols = list(all_data.keys())
+        if not dynamic_top:
+            self.active_symbols = self.active_symbols[:top_n]
 
         all_times = set()
         for df in all_data.values():
@@ -336,6 +340,24 @@ class BacktestEngine:
 
             if bar_counter % (scan_every_n * 4) == 0:
                 self._detect_regime_at_bar(all_data, htf_data, t)
+                
+                # Dynamic Symbol Re-ranking
+                if dynamic_top:
+                    symbol_volumes = []
+                    for sym, df in all_data.items():
+                        try:
+                            idx = df.index.get_loc(t)
+                            if isinstance(idx, slice):
+                                idx = idx.stop - 1
+                            # Look back 96 bars (24 hours) for volume
+                            start_idx = max(0, idx - 96)
+                            vol = df.iloc[start_idx:idx+1]["volume"].sum()
+                            symbol_volumes.append((sym, vol))
+                        except KeyError:
+                            continue
+                    
+                    symbol_volumes.sort(key=lambda x: x[1], reverse=True)
+                    self.active_symbols = [s for s, _ in symbol_volumes[:top_n]]
 
             self._check_drawdown_halt(t)
             if self.trading_halted:
@@ -350,7 +372,8 @@ class BacktestEngine:
             if used_margin >= self.balance * 0.95:
                 continue
 
-            for sym, df in all_data.items():
+            for sym in self.active_symbols:
+                df = all_data[sym]
                 if sym in self.open_trades:
                     continue
                 if sym in self.cooldown:

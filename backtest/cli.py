@@ -38,6 +38,7 @@ def main():
     parser.add_argument("--start-date", type=str, required=True, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end-date", type=str, default=None, help="End date (YYYY-MM-DD, default: today)")
     parser.add_argument("--top-coins", type=int, default=25, help="Number of top coins (default: 25)")
+    parser.add_argument("--dynamic-top", action="store_true", help="Enable dynamic symbol selection during backtest")
     parser.add_argument("--scan-bars", type=int, default=2, help="Scan every N bars (default: 2)")
     parser.add_argument("--no-regime", action="store_true", help="Disable regime adaptation")
     parser.add_argument("--clear-cache", action="store_true", help="Clear cached data and exit")
@@ -63,7 +64,10 @@ def main():
     print("=" * 80)
 
     provider = DataProvider()
-    symbols = provider.get_top_symbols(n=args.top_coins)
+    
+    # If dynamic top is enabled, fetch a larger pool (100 coins)
+    fetch_count = 100 if args.dynamic_top else args.top_coins
+    symbols = provider.get_top_symbols(n=fetch_count)
     all_data, htf_data = provider.prepare_backtest_data(symbols, start_date, end_date)
 
     config = _build_config()
@@ -72,7 +76,11 @@ def main():
         use_regime = not args.no_regime
         label = "REGIME-ADAPTIVE" if use_regime else "STATIC (NO REGIME)"
         engine = BacktestEngine(config, use_regime=use_regime)
-        engine.run(all_data, htf_data, start_date, end_date, scan_every_n=args.scan_bars)
+        # Pass dynamic settings to run
+        engine.run(all_data, htf_data, start_date, end_date, 
+                   scan_every_n=args.scan_bars, 
+                   dynamic_top=args.dynamic_top,
+                   top_n=args.top_coins)
         report = generate_report(engine)
         print_report(report, label)
         save_trades_csv(report, label)
@@ -81,7 +89,10 @@ def main():
 
         print("\n  [1/2] Running REGIME-ADAPTIVE backtest...")
         engine_regime = BacktestEngine(config, use_regime=True)
-        engine_regime.run(all_data, htf_data, start_date, end_date, scan_every_n=args.scan_bars)
+        engine_regime.run(all_data, htf_data, start_date, end_date, 
+                          scan_every_n=args.scan_bars, 
+                          dynamic_top=args.dynamic_top,
+                          top_n=args.top_coins)
         report_regime = generate_report(engine_regime)
         results["REGIME-ADAPTIVE"] = report_regime
         print_report(report_regime, "REGIME-ADAPTIVE")
@@ -89,7 +100,10 @@ def main():
 
         print("\n  [2/2] Running STATIC (NO REGIME) backtest...")
         engine_static = BacktestEngine(config, use_regime=False)
-        engine_static.run(all_data, htf_data, start_date, end_date, scan_every_n=args.scan_bars)
+        engine_static.run(all_data, htf_data, start_date, end_date, 
+                          scan_every_n=args.scan_bars, 
+                          dynamic_top=args.dynamic_top,
+                          top_n=args.top_coins)
         report_static = generate_report(engine_static)
         results["STATIC"] = report_static
         print_report(report_static, "STATIC (NO REGIME)")
