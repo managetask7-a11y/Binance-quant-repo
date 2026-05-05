@@ -485,6 +485,13 @@
         var label = $("modeLabel");
         var dot = $("statusDot");
         var statusText = "Scanning " + data.scan_limit;
+        
+        // Update Personality display
+        if ($("currentPersonality")) {
+            const pers = data.personality || "N/A";
+            const reg = data.regime || "N/A";
+            $("currentPersonality").textContent = `${reg.toUpperCase()} (${pers})`;
+        }
 
         var pauseBtn = $("pauseResumeBtn");
         pauseBtn.style.display = "flex";

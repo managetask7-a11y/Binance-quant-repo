@@ -439,40 +439,28 @@ class LiveTrader:
 
     def _refresh_top_coins(self):
         self.last_symbol_refresh_time = time.time()
+        
+        # [SYNCED WITH BACKTEST] Use the Gold List
+        from azalyst.config import GOLD_COINS
         scan_limit = self.active_personality.scan_limit
         self.current_scan_limit = scan_limit
         
-        logger.info(f"Refreshing top {scan_limit} coins from Binance...")
-
-        logger.info("Loading markets from Binance...")
+        logger.info(f"Using Gold List for top {scan_limit} coins...")
+        
+        # We still check if the markets exist, just to be safe
+        logger.info("Loading markets from Binance to verify Gold List symbols...")
         markets = self.broker.load_markets()
+        
+        verified_symbols = []
+        for s in GOLD_COINS:
+            # Handle different symbol formats if needed (e.g. BTC/USDT vs BTC/USDT:USDT)
+            # We assume GOLD_COINS are properly formatted for the broker
+            if s in markets and markets[s].get("active", True):
+                verified_symbols.append(s)
+                
+        self.symbols = verified_symbols[:scan_limit]
 
-        usdt_symbols = [
-            s for s, m in markets.items()
-            if (s.endswith("/USDT") or s.endswith("/USDT:USDT")) and m.get("active", True)
-        ]
-
-        filtered = []
-        for s in usdt_symbols:
-            base = s.split("/")[0]
-            full_name = s.replace("/USDT", "").replace(":", "")
-            if full_name not in EXCLUDE_SYMBOLS and base not in EXCLUDE_SYMBOLS:
-                filtered.append(s)
-
-        all_tickers = self.broker.fetch_tickers()
-
-        volume_ranked = []
-        for symbol in filtered:
-            if symbol in all_tickers:
-                ticker = all_tickers[symbol]
-                vol_usdt = ticker.get("quoteVolume", 0) or 0
-                if vol_usdt > MIN_VOLUME_MA:
-                    volume_ranked.append((symbol, vol_usdt))
-
-        volume_ranked.sort(key=lambda x: x[1], reverse=True)
-        self.symbols = [s for s, _ in volume_ranked[:scan_limit]]
-
-        logger.info(f"Selected top {len(self.symbols)} symbols:")
+        logger.info(f"Selected top {len(self.symbols)} Gold List symbols:")
         for s in self.symbols[:5]:
             logger.info(f"  - {s}")
         if len(self.symbols) > 5:
@@ -929,12 +917,41 @@ class LiveTrader:
         trade["reason"] = reason
 
         if self.broker.is_live:
-            try:
-                self.broker.cancel_symbol_orders(symbol)
-                side = "sell" if direction == BUY else "buy"
-                self.broker.place_market_order(symbol, side, qty)
-            except Exception as e:
-                logger.error(f"Failed to close {symbol}: {e}")
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.broker.cancel_symbol_orders(symbol)
+                    side = "sell" if direction == BUY else "buy"
+                    
+                    # 1. Place the close order
+                    self.broker.place_market_order(symbol, side, qty)
+                    
+                    # 2. VERIFY position is actually 0
+                    time.sleep(1) # Wait for Binance to process
+                    pos = self.broker.fetch_position(symbol)
+                    actual_qty = abs(float(pos.get("contracts", 0) or pos.get("size", 0))) if pos else 0
+                    
+                    if actual_qty < 0.000001: # Essentially zero
+                        logger.info(f"✅ Successfully closed {symbol} on exchange (Verified 0 size).")
+                        break
+                    else:
+                        logger.warning(f"⚠️ {symbol} position still open on Binance ({actual_qty} remaining). Retrying...")
+                        qty = actual_qty # Update qty to close the remaining bits
+                        
+                except Exception as e:
+                    logger.error(f"⚠️ Attempt {attempt+1}/{max_retries} failed to close {symbol}: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                    else:
+                        logger.error(f"❌ CRITICAL: Failed to close {symbol} after {max_retries} attempts. Manual intervention required!")
+                        from azalyst.notifications import send_alerts
+                        send_alerts(
+                            "🚨 <b>CRITICAL: CLOSE FAILED</b>",
+                            f"<b>{symbol}</b> could not be closed after {max_retries} retries!\n"
+                            "Manual intervention on Binance is required immediately.",
+                            telegram_token=self.config.get("telegram_token"),
+                            telegram_chat_id=self.config.get("telegram_chat_id")
+                        )
 
         emoji = "✅" if pnl_usd >= 0 else "❌"
         logger.trade(f"{emoji} CLOSED: {symbol} | PnL: {pnl_pct:+.2f}% (${pnl_usd:+.2f}) | Reason: {reason}")
@@ -1027,20 +1044,20 @@ class LiveTrader:
                     self.print_status()
 
                     logger.info(f"Next scan in {SCAN_INTERVAL_MIN} minutes...")
-                    loops = (SCAN_INTERVAL_MIN * 60) // 2
+                    loops = (SCAN_INTERVAL_MIN * 60)
                     for i in range(loops):
                         if not self.running:
                             break
                         try:
-                            # Sync balance every 1 minute (30 * 2s)
-                            if i % 30 == 0:
+                            # Sync balance every 1 minute
+                            if i % 60 == 0:
                                 self._sync_live_balance()
                             
-                            # Manage prices every 2s
+                            # Manage prices every 1s
                             self.manage_open_trades(main_scan=False)
                         except Exception as e:
                             logger.error(f"Error managing trades: {e}")
-                        time.sleep(2)
+                        time.sleep(1)
 
                 except Exception as e:
                     logger.error(f"Scan error: {e}\n{traceback.format_exc()}")

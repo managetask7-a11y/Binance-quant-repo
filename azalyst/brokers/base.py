@@ -41,6 +41,10 @@ class BaseBroker(ABC):
     def fetch_trade_history(self, symbol: str, limit: int) -> list:
         ...
 
+    @abstractmethod
+    def fetch_position(self, symbol: str) -> dict:
+        ...
+
     @property
     @abstractmethod
     def is_live(self) -> bool:
