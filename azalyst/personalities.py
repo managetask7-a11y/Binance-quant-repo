@@ -84,7 +84,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         min_agreement=2,
         weighted_threshold=5.0,
         directional_bias=1,
-        scan_limit=25,
+        scan_limit=30,
         leverage=20,
     ),
 
@@ -115,7 +115,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         min_agreement=2,
         weighted_threshold=5.0,
         directional_bias=1,
-        scan_limit=20,
+        scan_limit=25,
         leverage=20,
     ),
 
