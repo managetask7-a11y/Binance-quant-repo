@@ -296,11 +296,15 @@ class BacktestEngine:
         self.cooldown[symbol] = self._COOLDOWN_BARS
 
     def run(self, all_data: dict, htf_data: dict, start_date, end_date, 
-            scan_every_n: int = 2, dynamic_top: bool = False, top_n: int = 20):
+            scan_every_n: int = 2, dynamic_top: bool = False, top_n: int = 20,
+            trade_symbols: list[str] | None = None):
         t0 = time.time()
         self.active_symbols = list(all_data.keys())
         if not dynamic_top:
-            self.active_symbols = self.active_symbols[:top_n]
+            if trade_symbols:
+                self.active_symbols = [s for s in self.active_symbols if s in trade_symbols]
+            else:
+                self.active_symbols = self.active_symbols[:top_n]
 
         all_times = set()
         for df in all_data.values():

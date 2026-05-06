@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from azalyst.config import (
     LEVERAGE, RISK_PER_TRADE, ATR_MULT, TP_RR_RATIO,
     SL_MIN_PCT, SL_MAX_PCT, MAX_OPEN_TRADES, MAX_HOLD_SCANS,
-    BREAKEVEN_AFTER_SCANS, MAX_SAME_DIRECTION, GOLD_COINS
+    BREAKEVEN_AFTER_SCANS, MAX_SAME_DIRECTION, GOLD_COINS,
+    REGIME_BTC_SYMBOL
 )
 from backtest.data import DataProvider
 from backtest.engine import BacktestEngine
@@ -76,6 +77,10 @@ def main():
         else:
             fetch_count = 100 if args.dynamic_top else args.top_coins
         symbols = provider.get_top_symbols(n=fetch_count)
+    
+    # ALWAYS ensure BTC is in symbols for regime detection, even if not in Gold List
+    if REGIME_BTC_SYMBOL not in symbols:
+        symbols = list(symbols) + [REGIME_BTC_SYMBOL]
         
     all_data, htf_data = provider.prepare_backtest_data(symbols, start_date, end_date)
 
@@ -89,7 +94,8 @@ def main():
         engine.run(all_data, htf_data, start_date, end_date, 
                    scan_every_n=args.scan_bars, 
                    dynamic_top=args.dynamic_top,
-                   top_n=args.top_coins)
+                   top_n=args.top_coins,
+                   trade_symbols=symbols) # 'symbols' is the original list before BTC was added
         report = generate_report(engine)
         print_report(report, label)
         save_trades_csv(report, label)
