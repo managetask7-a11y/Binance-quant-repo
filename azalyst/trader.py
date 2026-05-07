@@ -502,6 +502,26 @@ class LiveTrader:
                 df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
                 df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
                 df.set_index("timestamp", inplace=True)
+                
+                # --- CRITICAL FIX: Drop Incomplete Candles ---
+                # Live exchange data always includes the currently forming candle.
+                # Evaluating on a forming candle fails volume checks and distorts indicators.
+                now = pd.Timestamp.now(tz="UTC")
+                
+                # Determine timeframe duration in minutes
+                if "m" in tf:
+                    tf_minutes = int(tf.replace("m", ""))
+                elif "h" in tf:
+                    tf_minutes = int(tf.replace("h", "")) * 60
+                elif "d" in tf:
+                    tf_minutes = int(tf.replace("d", "")) * 1440
+                else:
+                    tf_minutes = 15 # fallback
+                    
+                # If the candle's close time is in the future, it is incomplete. Drop it.
+                if not df.empty and df.index[-1] + pd.Timedelta(minutes=tf_minutes) > now:
+                    df = df.iloc[:-1]
+                    
                 return df
             except Exception as e:
                 logger.warn(f"Failed to fetch {symbol} (attempt {attempt + 1}): {e}")
