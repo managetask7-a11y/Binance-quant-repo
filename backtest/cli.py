@@ -20,7 +20,7 @@ from backtest.report import generate_report, print_report, save_trades_csv
 
 def _build_config() -> dict:
     return {
-        "initial_balance": 100.0,
+        "initial_balance": 100,
         "leverage": LEVERAGE,
         "risk_per_trade": RISK_PER_TRADE,
         "atr_mult": ATR_MULT,

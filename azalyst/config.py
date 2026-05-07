@@ -13,7 +13,7 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
-INITIAL_BALANCE = 100.0
+INITIAL_BALANCE = 10
 LEVERAGE = 15
 RISK_PER_TRADE = 0.07
 ATR_MULT = 1.4

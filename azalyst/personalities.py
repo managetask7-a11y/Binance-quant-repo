@@ -69,7 +69,6 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "bnf": 5.0,         # Solid mean-reversion pullbacks
             "bb_trend": 1.6,    # KILLED — was in every big loss, toxic in this regime
             "umar": 2.8,        # Boosted — achieved 100% win rate when filtered
-            "jadecap": 2.0,     # Sweep signals for diversification
         },
         atr_mult=2.5,           # RESTORED from 2.0 — original value
         tp_rr_ratio=3.5,        # RESTORED from 4.0 — original value
@@ -106,9 +105,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         tp_rr_ratio=3.0,
         sl_min_pct=0.015,
         sl_max_pct=0.04,
-        trailing_enabled=True,
-        trail_trigger_pct=0.03,
-        trail_distance_pct=0.02,
+        trailing_enabled=False,
+        trail_trigger_pct=0.0,
+        trail_distance_pct=0.0,
         max_open_trades=4,
         max_same_direction=4,
         risk_multiplier=0.7,
@@ -159,9 +158,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         tp_rr_ratio=2.5,
         sl_min_pct=0.015,
         sl_max_pct=0.03,
-        trailing_enabled=True,
-        trail_trigger_pct=0.025,
-        trail_distance_pct=0.015,
+        trailing_enabled=False,
+        trail_trigger_pct=0.0,
+        trail_distance_pct=0.0,
         max_open_trades=3,
         max_same_direction=3,
         risk_multiplier=0.2,

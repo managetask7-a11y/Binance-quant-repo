@@ -216,7 +216,7 @@ class BacktestEngine:
         # Move SL to entry + fees + 0.2% lock.
         # Small lock so it doesn't interfere with trailing stop.
         # ═══════════════════════════════════════════════════════════════
-        if not closed and not trade.get("be_moved", False):
+        if not closed and not trade.get("be_moved", False) and self.active_personality.trailing_enabled:
             atr_val = trade.get("atr_val", trade["atr"])
             if atr_val > 0:
                 if direction == BUY:
