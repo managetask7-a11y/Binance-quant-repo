@@ -246,7 +246,8 @@ def api_get_config():
     # Strategy keys should show active values (with global defaults as fallback)
     strategy_keys = [
         "tp_rr_ratio", "risk_per_trade", "atr_mult", "leverage",
-        "top_n_coins", "prop_daily_loss_pct", "daily_profit_target"
+        "top_n_coins", "prop_daily_loss_pct", "daily_profit_target",
+        "regime_mode", "manual_regime"
     ]
     
     # Notification keys should stay blank unless specifically set by the user
@@ -258,6 +259,8 @@ def api_get_config():
     for k in strategy_keys:
         if k == "daily_profit_target":
             config[k] = _trader_instance.daily_profit_target
+        elif k in ["regime_mode", "manual_regime"]:
+            config[k] = supabase_db.get_config(user_id, k, "auto" if k == "regime_mode" else "sideways")
         else:
             config[k] = _trader_instance.config.get(k, "")
         
@@ -287,7 +290,9 @@ def api_update_config():
         "prop_daily_loss_pct": float,
         "daily_profit_target": float,
         "telegram_bot_token": str,
-        "telegram_chat_id": str
+        "telegram_chat_id": str,
+        "regime_mode": str,
+        "manual_regime": str
     }
     
     for key, val_type in allowed_keys.items():
@@ -307,7 +312,7 @@ def api_update_config():
                 continue
 
     # Refresh the trader instance so it picks up changes immediately
-    _trader_instance._refresh_config()
+    _trader_instance.refresh_regime_now()
     
     return jsonify({"success": True})
 

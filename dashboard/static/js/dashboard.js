@@ -333,6 +333,16 @@
                 $("cfgTopCoins").value = data.top_n_coins || "15";
                 $("cfgDailyProfitTarget").value = data.daily_profit_target || "0";
                 $("cfgDailyLossLimit").value = data.prop_daily_loss_pct || "25";
+
+                // Regime Settings
+                $("cfgRegimeMode").value = data.regime_mode || "auto";
+                $("cfgManualRegime").value = data.manual_regime || "sideways";
+                
+                if (data.regime_mode === "manual") {
+                    $("manualRegimeGroup").classList.remove("hidden");
+                } else {
+                    $("manualRegimeGroup").classList.add("hidden");
+                }
             }
         }
         function closeModal() { overlay.classList.remove("visible"); }
@@ -341,6 +351,15 @@
         closeBtn.addEventListener("click", closeModal);
         cancelBtn.addEventListener("click", closeModal);
         overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+
+        // Toggle manual regime group
+        $("cfgRegimeMode").addEventListener("change", function() {
+            if (this.value === "manual") {
+                $("manualRegimeGroup").classList.remove("hidden");
+            } else {
+                $("manualRegimeGroup").classList.add("hidden");
+            }
+        });
 
         var defaultBtn = $("useDefaultConfig");
         if (defaultBtn) {
@@ -376,7 +395,9 @@
                 daily_profit_target: $("cfgDailyProfitTarget").value,
                 prop_daily_loss_pct: $("cfgDailyLossLimit").value,
                 telegram_bot_token: $("cfgTgToken").value,
-                telegram_chat_id: $("cfgTgChat").value
+                telegram_chat_id: $("cfgTgChat").value,
+                regime_mode: $("cfgRegimeMode").value,
+                manual_regime: $("cfgManualRegime").value
             };
 
             saveBtn.disabled = true;

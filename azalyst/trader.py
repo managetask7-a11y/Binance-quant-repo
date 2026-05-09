@@ -285,7 +285,9 @@ class LiveTrader:
                     "top_n_coins": "top_n_coins",
                     "prop_daily_loss_pct": "prop_daily_loss_pct",
                     "telegram_token": "telegram_bot_token",
-                    "telegram_chat_id": "telegram_chat_id"
+                    "telegram_chat_id": "telegram_chat_id",
+                    "regime_mode": "regime_mode",
+                    "manual_regime": "manual_regime"
                 }
                 for internal_key, db_key in key_map.items():
                     val = db.get_config(self.user_id, db_key, None)
@@ -421,21 +423,36 @@ class LiveTrader:
 
     def _detect_regime(self):
         try:
-            btc_df = self.fetch_ohlcv(REGIME_BTC_SYMBOL, f"{CANDLE_TF_MIN}m", 250)
-            if btc_df.empty or len(btc_df) < 200:
-                return
-            btc_df = compute_indicators(btc_df)
-            btc_htf = self.fetch_ohlcv(REGIME_BTC_SYMBOL, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
-            if not btc_htf.empty:
-                btc_htf["ema_50"] = btc_htf["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
-                btc_htf["ema_200"] = btc_htf["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
+            regime_mode = self.config.get("regime_mode", "auto")
             old_regime = self.current_regime
-            self.current_regime = detect_regime(btc_df, htf_df=btc_htf, symbol="__MARKET__")
+
+            if regime_mode == "manual":
+                manual_val = self.config.get("manual_regime", "sideways")
+                try:
+                    self.current_regime = MarketRegime(manual_val)
+                except ValueError:
+                    self.current_regime = MarketRegime.SIDEWAYS
+            else:
+                btc_df = self.fetch_ohlcv(REGIME_BTC_SYMBOL, f"{CANDLE_TF_MIN}m", 250)
+                if btc_df.empty or len(btc_df) < 200:
+                    return
+                btc_df = compute_indicators(btc_df)
+                btc_htf = self.fetch_ohlcv(REGIME_BTC_SYMBOL, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
+                if not btc_htf.empty:
+                    btc_htf["ema_50"] = btc_htf["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
+                    btc_htf["ema_200"] = btc_htf["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
+                self.current_regime = detect_regime(btc_df, htf_df=btc_htf, symbol="__MARKET__")
+
             self.active_personality = get_personality(self.current_regime)
             if old_regime != self.current_regime:
-                logger.info(f"REGIME SHIFT: {old_regime.value} -> {self.current_regime.value} | Personality: {self.active_personality.name}")
+                logger.info(f"REGIME SHIFT ({regime_mode}): {old_regime.value} -> {self.current_regime.value} | Personality: {self.active_personality.name}")
         except Exception as e:
             logger.error(f"Regime detection failed: {e}")
+
+    def refresh_regime_now(self):
+        """Immediately re-evaluate regime based on current config settings"""
+        self._refresh_config()
+        self._detect_regime()
 
     def _refresh_top_coins(self):
         self.last_symbol_refresh_time = time.time()

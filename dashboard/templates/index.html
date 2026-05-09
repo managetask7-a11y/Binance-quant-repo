@@ -308,6 +308,35 @@
                 </div>
             </div>
 
+            <!-- Regime Control -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between border-b border-warn/20 pb-1 mb-4">
+                    <h4 class="text-[0.65rem] text-warn uppercase tracking-widest font-bold">Regime Control</h4>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-[0.68rem] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Regime Mode</label>
+                        <select id="cfgRegimeMode" class="w-full bg-surface-800 border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm font-semibold text-gray-200 focus:outline-none focus:border-warn/50 transition-all cursor-pointer">
+                            <option value="auto">Auto (Detect)</option>
+                            <option value="manual">Manual (Override)</option>
+                        </select>
+                    </div>
+                    <div id="manualRegimeGroup" class="hidden">
+                        <label class="block text-[0.68rem] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Selected Regime</label>
+                        <select id="cfgManualRegime" class="w-full bg-surface-800 border border-white/[0.06] rounded-[8px] px-3 py-2 text-sm font-semibold text-gray-200 focus:outline-none focus:border-warn/50 transition-all cursor-pointer">
+                            <option value="strong_uptrend">Strong Uptrend</option>
+                            <option value="weak_uptrend">Weak Uptrend</option>
+                            <option value="sideways">Sideways</option>
+                            <option value="weak_downtrend">Weak Downtrend</option>
+                            <option value="strong_downtrend">Strong Downtrend</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="bg-warn/5 border border-warn/10 rounded-[8px] p-3 text-[0.65rem] text-gray-400 italic">
+                    <p>Manual mode bypasses the BTC-based regime detection. Changing this will immediately shift the bot's "Personality" and strategy weights.</p>
+                </div>
+            </div>
+
             <!-- Scan Depth -->
             <div class="mb-8">
                 <div class="flex items-center justify-between border-b border-accent-blue/20 pb-1 mb-4">
