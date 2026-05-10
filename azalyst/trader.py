@@ -514,6 +514,9 @@ class LiveTrader:
         )
 
     def fetch_ohlcv(self, symbol: str, tf: str = "15m", limit: int = 250) -> pd.DataFrame:
+        # --- SYSTEM-WIDE ANTI-BAN DELAY ---
+        import time
+        time.sleep(2)
         for attempt in range(3):
             try:
                 ohlcv = self.broker.fetch_ohlcv(symbol, tf, limit)
@@ -580,13 +583,14 @@ class LiveTrader:
                 )
             return
 
-        effective_cap = min(self._apply_order_cap(), self.active_personality.max_open_trades)
-        if len(self.open_trades) >= effective_cap:
-            logger.info(f"Order cap reached ({len(self.open_trades)}/{effective_cap}). Skipping scan.")
+        p = self.active_personality
+        max_allowed = max(1, p.max_open_trades) # Ensure at least 1
+        
+        if len(self.open_trades) >= max_allowed:
+            logger.info(f"Order cap reached ({len(self.open_trades)}/{max_allowed}). Skipping scan.")
             return
 
-        p = self.active_personality
-        logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{p.max_open_trades} open)")
+        logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{max_allowed} open)")
 
         scan_checked = 0
         scan_signals = 0
@@ -596,14 +600,14 @@ class LiveTrader:
         for symbol in self.symbols:
             if symbol in self.open_trades:
                 continue
-
-            # --- Correlation & Exposure Guard Pre-Check ---
-            open_list = list(self.open_trades.values())
-            longs = [t for t in open_list if t["direction"] == BUY]
-            shorts = [t for t in open_list if t["direction"] == SELL]
             
-            df = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 250)
-            if df.empty or len(df) < 200:
+            try:
+                df = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 250)
+                if df.empty or len(df) < 200:
+                    scan_skipped_data += 1
+                    continue
+            except Exception as e:
+                logger.error(f"Error fetching data for {symbol} (Rate Limited?): {e}")
                 scan_skipped_data += 1
                 continue
 
