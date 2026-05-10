@@ -80,11 +80,29 @@ class LiveBinanceBroker(BaseBroker):
                     continue
                 raise
 
-    def set_leverage(self, symbol: str, leverage: int) -> None:
-        try:
-            self._exchange.set_leverage(leverage, symbol)
-        except Exception as exc:
-            logger.warning(f"Could not set leverage for {symbol}: {exc}")
+    def set_leverage(self, symbol: str, leverage: int = 10):
+        # Fallback sequence for restrictive coins
+        leverages_to_try = [leverage, 10, 5, 1]
+        
+        for lev in leverages_to_try:
+            if lev > leverage: continue # Don't try higher than requested
+            
+            try:
+                self._exchange.set_leverage(lev, symbol)
+                return # Success
+            except Exception as e:
+                err_msg = str(e).lower()
+                # If it's a rate limit or IP ban, don't keep hammering
+                if "418" in err_msg or "1003" in err_msg:
+                    logger.debug(f"Leverage skip for {symbol} (IP Rate Limited)")
+                    return
+                
+                # If it's "Invalid Leverage", try the next lower one
+                if "4028" in err_msg or "invalid leverage" in err_msg:
+                    continue
+                    
+                logger.warning(f"Could not set leverage {lev} for {symbol}: {e}")
+                break # Other error, stop trying
 
     def place_sl_tp(self, symbol: str, side: str, qty: float, sl_price: float, tp_price: float) -> dict:
         logger.info(f"Virtual SL/TP set for {symbol} | SL: ${sl_price:.4f} | TP: ${tp_price:.4f}")
