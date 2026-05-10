@@ -13,7 +13,7 @@ from azalyst.exchange.binance_ws import BinanceWebSocketManager
 from azalyst.logger import logger
 
 
-_BOOTSTRAP_DELAY = 0.3
+_BOOTSTRAP_DELAY = 1.0
 _RECONCILE_INTERVAL = 300
 _KLINE_HISTORY_LIMIT = 260
 

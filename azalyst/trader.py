@@ -492,7 +492,7 @@ class LiveTrader:
         if self.broker.is_live:
             for symbol in self.symbols:
                 self.broker.set_leverage(symbol, LEVERAGE)
-                time.sleep(0.2)
+                time.sleep(2.0) # Conservative delay to prevent IP bans during startup burst
 
         logger.info(f"Symbol refresh complete. Tracking {len(self.symbols)} symbols")
 
