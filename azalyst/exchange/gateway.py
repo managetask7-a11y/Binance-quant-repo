@@ -56,10 +56,31 @@ class ExchangeGateway:
             exchange.set_sandbox_mode(True)
         return exchange
 
+    def _safe_execute(self, func_name: str, *args, **kwargs):
+        endpoints = [
+            "https://fapi.binance.com",
+            "https://fapi1.binance.com",
+            "https://fapi2.binance.com"
+        ]
+        last_exception = None
+        for url in endpoints:
+            try:
+                self._exchange.urls['api']['fapi'] = url
+                method = getattr(self._exchange, func_name)
+                return method(*args, **kwargs)
+            except Exception as e:
+                last_exception = e
+                err_msg = str(e).lower()
+                if "418" in err_msg or "1003" in err_msg or "ddos" in err_msg:
+                    logger.debug(f"Gateway endpoint {url} blocked, trying next...")
+                    continue
+                raise e
+        raise last_exception
+
     def load_markets(self) -> dict:
         for attempt in range(3):
             try:
-                self._markets = self._exchange.load_markets()
+                self._markets = self._safe_execute("load_markets")
                 self._state.build_symbol_maps(self._markets)
                 return self._markets
             except Exception as e:
@@ -163,8 +184,8 @@ class ExchangeGateway:
                 done += 1
                 for attempt in range(3):
                     try:
-                        ohlcv = self._exchange.fetch_ohlcv(
-                            symbol, tf, limit=_KLINE_HISTORY_LIMIT
+                        ohlcv = self._safe_execute(
+                            "fetch_ohlcv", symbol, tf, limit=_KLINE_HISTORY_LIMIT
                         )
                         if ohlcv:
                             self._state.seed_klines(symbol, tf, ohlcv)
