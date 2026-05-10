@@ -146,18 +146,24 @@ def api_change_mode():
             val = broker.validate_connection()
             if not val.get("success"):
                 err_msg = val.get("error", "")
-                # If it's just an IP ban/rate limit, allow saving anyway
-                if "418" in err_msg or "rate limit" in err_msg.lower() or "banned" in err_msg.lower():
-                    _trader_instance.reconfigure(broker)
-                    return jsonify({"success": True, "mode": mode, "warning": "IP currently rate-limited by Binance. Settings saved, bot will start as soon as ban lifts."})
-                return jsonify({"error": "Failed to connect to Live Binance. " + err_msg}), 400
+                detail = val.get("detail", "").lower()
+                
+                # ONLY block if we are sure it's an Authentication/API Key issue
+                if "auth" in detail or "invalid" in err_msg.lower() or "key" in err_msg.lower():
+                    return jsonify({"error": "Failed to connect to Live Binance. " + err_msg}), 400
+                
+                # For any other connection error (timeout, 418, connection failed), allow saving
+                _trader_instance.reconfigure(broker)
+                return jsonify({
+                    "success": True, 
+                    "mode": mode, 
+                    "warning": f"Settings saved! Note: Binance connection is unstable ({err_msg}). Bot will retry automatically."
+                })
             _trader_instance.reconfigure(broker)
         except Exception as e:
-            err_str = str(e)
-            if "418" in err_str or "rate limit" in err_str.lower():
-                _trader_instance.reconfigure(broker)
-                return jsonify({"success": True, "mode": mode, "warning": "IP currently rate-limited. Settings saved."})
-            return jsonify({"error": f"Failed to configure Live Binance: {e}"}), 400
+            # Fallback for unexpected exceptions
+            _trader_instance.reconfigure(broker)
+            return jsonify({"success": True, "mode": mode, "warning": "Settings saved, but connection could not be verified."})
     else:
         _trader_instance.reconfigure(
             __import__("azalyst.brokers.demo", fromlist=["DemoBroker"]).DemoBroker(
