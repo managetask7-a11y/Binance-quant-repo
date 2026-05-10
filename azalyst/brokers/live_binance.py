@@ -52,7 +52,10 @@ class LiveBinanceBroker(BaseBroker):
                 # For other errors (like balance or leverage limits), don't retry on other endpoints
                 raise e
         
-        raise last_exception
+        # If we reach here, ALL endpoints are blocked. 
+        # Log it and return None instead of crashing.
+        logger.warning(f"CRITICAL: All Binance endpoints are currently blocking IP {self._exchange.enableRateLimit}. Skipping {func_name}.")
+        return None
 
     @property
     def is_live(self) -> bool:
@@ -102,12 +105,15 @@ class LiveBinanceBroker(BaseBroker):
         for lev in leverages:
             if lev > leverage: continue
             try:
-                self._safe_execute("set_leverage", lev, symbol)
+                res = self._safe_execute("set_leverage", lev, symbol)
+                if res is None: break # All endpoints blocked, stop trying for this cycle
                 return
             except Exception as e:
                 if "4028" in str(e) or "invalid" in str(e).lower():
                     continue
-                raise e
+                # For other errors, we can log it but don't crash
+                logger.warning(f"Leverage error for {symbol}: {e}")
+                break
 
     def place_sl_tp(self, symbol: str, side: str, qty: float, sl_price: float, tp_price: float) -> dict:
         logger.info(f"Virtual SL/TP set for {symbol} | SL: ${sl_price:.4f} | TP: ${tp_price:.4f}")

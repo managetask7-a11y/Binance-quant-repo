@@ -75,7 +75,8 @@ class ExchangeGateway:
                     logger.debug(f"Gateway endpoint {url} blocked, trying next...")
                     continue
                 raise e
-        raise last_exception
+        logger.warning(f"Gateway: All endpoints blocked. Skipping {func_name}.")
+        return None
 
     def load_markets(self) -> dict:
         for attempt in range(3):
@@ -189,6 +190,8 @@ class ExchangeGateway:
                         )
                         if ohlcv:
                             self._state.seed_klines(symbol, tf, ohlcv)
+                        elif ohlcv is None: # All endpoints blocked
+                            break 
                         break
                     except Exception as e:
                         if attempt < 2:
