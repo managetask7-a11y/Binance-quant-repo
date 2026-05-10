@@ -89,10 +89,19 @@ def main():
     if not trading_mode and not args.dry_run:
         logger.info("Waiting for configuration...")
         import time
-        while not trader.user_id or not db.get_config(trader.user_id, "trading_mode", ""):
+        while True:
+            try:
+                if trader.user_id and db.get_config(trader.user_id, "trading_mode", ""):
+                    break
+            except Exception as e:
+                logger.warning(f"Database connection error: {e}. Retrying...")
             time.sleep(2)
-        trading_mode = db.get_config(trader.user_id, "trading_mode", "")
-        logger.info(f"Configuration received for user {trader.user_id}. Starting trader...")
+            
+        try:
+            trading_mode = db.get_config(trader.user_id, "trading_mode", "")
+            logger.info(f"Configuration received for user {trader.user_id}. Starting trader...")
+        except Exception:
+            pass
 
     trader.run()
 
