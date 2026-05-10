@@ -14,6 +14,9 @@ class Logger:
     def info(self, msg: str):
         self.log(msg, "INFO")
 
+    def debug(self, msg: str):
+        self.log(msg, "DEBUG")
+
     def warn(self, msg: str):
         self.log(msg, "WARN")
 
