@@ -718,7 +718,7 @@ class LiveTrader:
             "signal": sig["signal"],
             "strategies": ", ".join(sig.get("strategies", [])),
             "atr": atr,
-            "is_alpha": is_alpha,
+            "is_alpha": "alpha_x" in sig.get("strategies", []),
             "extended": False,
         }
 
@@ -996,7 +996,6 @@ class LiveTrader:
                         time.sleep(2 ** attempt)
                     else:
                         logger.error(f"❌ CRITICAL: Failed to close {symbol} after {max_retries} attempts. Manual intervention required!")
-                        from azalyst.notifications import send_alerts
                         send_alerts(
                             "🚨 <b>CRITICAL: CLOSE FAILED</b>",
                             f"<b>{symbol}</b> could not be closed after {max_retries} retries!\n"
