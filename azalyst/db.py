@@ -98,18 +98,42 @@ def fetch_equity(user_id: str, mode: str = "dry_run") -> list:
     return result.data or []
 
 
+def safe_execute(func, max_retries=3):
+    """Retries a database operation if it fails due to transient network errors."""
+    import time
+    last_err = None
+    for i in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            last_err = e
+            # Log only if it's a known transient network error
+            if "ReadError" in str(e) or "Resource temporarily unavailable" in str(e) or "10035" in str(e):
+                from azalyst.logger import logger
+                logger.warn(f"Database transient error (attempt {i+1}/{max_retries}): {e}")
+                time.sleep(0.5 * (i + 1))
+                continue
+            raise e
+    raise last_err
+
+
 def upsert_config(user_id: str, key: str, value: str) -> None:
     client = get_client()
-    client.table("bot_config").upsert(
-        {"user_id": user_id, "key": key, "value": value},
-        on_conflict="user_id,key"
-    ).execute()
+    def _op():
+        return client.table("bot_config").upsert(
+            {"user_id": user_id, "key": key, "value": value},
+            on_conflict="user_id,key"
+        ).execute()
+    safe_execute(_op)
 
 
 def get_config(user_id: str, key: str, default=None):
     client = get_client()
-    result = client.table("bot_config").select("value").eq("user_id", user_id).eq("key", key).limit(1).execute()
-    if result.data:
+    def _op():
+        return client.table("bot_config").select("value").eq("user_id", user_id).eq("key", key).limit(1).execute()
+    
+    result = safe_execute(_op)
+    if result and result.data:
         return result.data[0]["value"]
     return default
 
