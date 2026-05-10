@@ -9,7 +9,7 @@ class Logger:
     def log(self, msg: str, level: str = "INFO"):
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         line = f"[{ts}] [{level}] {msg}"
-        print(line)
+        print(line, flush=True)
 
     def info(self, msg: str):
         self.log(msg, "INFO")
