@@ -5,7 +5,6 @@ import os
 import sys
 
 from dotenv import load_dotenv
-import ccxt
 
 from azalyst.brokers.demo import DemoBroker
 from azalyst.brokers.live_binance import LiveBinanceBroker
@@ -30,9 +29,6 @@ def _resolve_api_keys(user_id: str):
 
     return raw_key or os.getenv("BINANCE_API_KEY", ""), raw_secret or os.getenv("BINANCE_API_SECRET", "")
 
-
-def _build_data_exchange() -> ccxt.binanceusdm:
-    return ccxt.binanceusdm({"enableRateLimit": True})
 
 
 def main():
@@ -68,15 +64,17 @@ def main():
             logger.info(f"Operating in LIVE {'TESTNET ' if testnet else ''}TRADING mode for user {active_user_id}")
         else:
             logger.warning("Live mode configured but no API keys found. Falling back to demo mode.")
-            broker = DemoBroker(_build_data_exchange())
+            broker = DemoBroker()
+            api_key, api_secret, testnet = "", "", False
     else:
-        broker = DemoBroker(_build_data_exchange())
+        broker = DemoBroker()
+        api_key, api_secret, testnet = "", "", False
         if trading_mode == "dry_run" and active_user_id:
             logger.info(f"Operating in Demo (Dry Run) mode for user {active_user_id}")
         else:
             logger.info("No active user configuration found. Waiting for setup via dashboard.")
 
-    trader = LiveTrader(broker=broker, user_id=active_user_id)
+    trader = LiveTrader(broker=broker, user_id=active_user_id, api_key=api_key, api_secret=api_secret, testnet=testnet)
 
     if args.dashboard and not args.no_dashboard:
         from dashboard.server import start_dashboard

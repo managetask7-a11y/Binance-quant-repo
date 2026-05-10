@@ -10,10 +10,6 @@ class BaseBroker(ABC):
         ...
 
     @abstractmethod
-    def fetch_wallet_balance(self) -> float:
-        ...
-
-    @abstractmethod
     def place_market_order(self, symbol: str, side: str, qty: float) -> dict:
         ...
 
@@ -26,23 +22,7 @@ class BaseBroker(ABC):
         ...
 
     @abstractmethod
-    def fetch_tickers(self) -> dict:
-        ...
-
-    @abstractmethod
-    def fetch_ticker(self, symbol: str) -> dict:
-        ...
-
-    @abstractmethod
-    def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list:
-        ...
-
-    @abstractmethod
-    def fetch_trade_history(self, symbol: str, limit: int) -> list:
-        ...
-
-    @abstractmethod
-    def fetch_position(self, symbol: str) -> dict:
+    def cancel_symbol_orders(self, symbol: str) -> None:
         ...
 
     @property

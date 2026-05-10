@@ -166,9 +166,7 @@ def api_change_mode():
             return jsonify({"success": True, "mode": mode, "warning": "Settings saved, but connection could not be verified."})
     else:
         _trader_instance.reconfigure(
-            __import__("azalyst.brokers.demo", fromlist=["DemoBroker"]).DemoBroker(
-                __import__("ccxt").binanceusdm({"enableRateLimit": True})
-            )
+            __import__("azalyst.brokers.demo", fromlist=["DemoBroker"]).DemoBroker()
         )
 
     return jsonify({"success": True, "mode": mode})
