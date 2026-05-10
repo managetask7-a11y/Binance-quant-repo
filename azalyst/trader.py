@@ -466,16 +466,17 @@ class LiveTrader:
         
         # We still check if the markets exist, just to be safe
         logger.info("Loading markets from Binance to verify Gold List symbols...")
-        markets = self.broker.load_markets()
-        
-        verified_symbols = []
-        for s in GOLD_COINS:
-            # Handle different symbol formats if needed (e.g. BTC/USDT vs BTC/USDT:USDT)
-            # We assume GOLD_COINS are properly formatted for the broker
-            if s in markets and markets[s].get("active", True):
-                verified_symbols.append(s)
-                
-        self.symbols = verified_symbols[:scan_limit]
+        try:
+            markets = self.broker.load_markets()
+            verified_symbols = []
+            for s in GOLD_COINS:
+                if s in markets and markets[s].get("active", True):
+                    verified_symbols.append(s)
+            self.symbols = verified_symbols[:scan_limit]
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to verify symbols from Binance (IP Ban/Rate Limit?): {e}")
+            logger.info("Falling back to raw Gold List symbols.")
+            self.symbols = GOLD_COINS[:scan_limit]
 
         logger.info(f"Selected top {len(self.symbols)} Gold List symbols:")
         for s in self.symbols[:5]:
