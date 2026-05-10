@@ -587,6 +587,11 @@ class LiveTrader:
         p = self.active_personality
         logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{p.max_open_trades} open)")
 
+        scan_checked = 0
+        scan_signals = 0
+        scan_skipped_data = 0
+        scan_no_signal = 0
+
         for symbol in self.symbols:
             if symbol in self.open_trades:
                 continue
@@ -598,11 +603,15 @@ class LiveTrader:
             
             df = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 250)
             if df.empty or len(df) < 200:
+                scan_skipped_data += 1
                 continue
 
             df = compute_indicators(df)
             if df["atr_14"].iloc[-1] == 0 or np.isnan(df["atr_14"].iloc[-1]):
+                scan_skipped_data += 1
                 continue
+
+            scan_checked += 1
 
             htf_df = self.fetch_ohlcv(symbol, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
             if not htf_df.empty:
@@ -611,7 +620,11 @@ class LiveTrader:
 
             sig = multi_strategy_scan(df, htf_df=htf_df, personality=self.active_personality)
             if sig is None:
+                scan_no_signal += 1
                 continue
+
+            scan_signals += 1
+            logger.info(f"   [SIGNAL] {symbol} {'LONG' if sig['direction'] == BUY else 'SHORT'} | Strategies: {sig.get('strategies', [])}")
 
             # --- Post-Signal Exposure Enforcement ---
             direction = sig["direction"]
@@ -633,6 +646,8 @@ class LiveTrader:
 
             self.execute_trade(symbol, df, sig)
             time.sleep(0.5)
+
+        logger.info(f"   Scan complete: {scan_checked} checked, {scan_signals} signals, {scan_no_signal} no signal, {scan_skipped_data} data issues")
 
     def execute_trade(self, symbol: str, df: pd.DataFrame, sig: dict):
         last = df.iloc[-1]
