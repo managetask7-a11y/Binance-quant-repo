@@ -468,6 +468,8 @@ class LiveTrader:
         logger.info("Loading markets from Binance to verify Gold List symbols...")
         try:
             markets = self.broker.load_markets()
+            # --- RATE LIMIT COOLDOWN: 3s pause after heavy load_markets call ---
+            time.sleep(3)
             verified_symbols = []
             for s in GOLD_COINS:
                 if s in markets and markets[s].get("active", True):
@@ -484,10 +486,8 @@ class LiveTrader:
         if len(self.symbols) > 5:
             logger.info(f"  ... and {len(self.symbols) - 5} more")
 
-        if self.broker.is_live:
-            logger.info("Setting leverage...")
-            for symbol in self.symbols:
-                self.broker.set_leverage(symbol, LEVERAGE)
+        # NOTE: set_leverage removed from startup to reduce API calls (~15 saved).
+        # Leverage is set dynamically per-trade at execution time in execute_trade().
 
         logger.info(f"Symbol refresh complete. Actively tracking {len(self.symbols)} symbols...")
 
@@ -973,7 +973,10 @@ class LiveTrader:
         trade["pnl_usd"] = pnl_usd
         trade["reason"] = reason
 
-        if self.broker.is_live:
+        # --- SKIP BINANCE ONLY for paper-only trades ---
+        is_paper_trade = trade.get("signal", "") == "PAPER_TRADE"
+
+        if self.broker.is_live and not is_paper_trade:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
@@ -1008,6 +1011,8 @@ class LiveTrader:
                             telegram_token=self.config.get("telegram_token"),
                             telegram_chat_id=self.config.get("telegram_chat_id")
                         )
+        elif is_paper_trade:
+            logger.info(f"🧪 Paper trade {symbol} closed locally (no Binance interaction).")
 
         emoji = "✅" if pnl_usd >= 0 else "❌"
         logger.trade(f"{emoji} CLOSED: {symbol} | PnL: {pnl_pct:+.2f}% (${pnl_usd:+.2f}) | Reason: {reason}")

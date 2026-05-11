@@ -117,6 +117,8 @@ class LiveBinanceBroker(BaseBroker):
         return self._exchange.fetch_tickers()
 
     def fetch_ticker(self, symbol: str) -> dict:
+        # --- ANTI-BAN DELAY: 2s cooldown per ticker fetch ---
+        time.sleep(2)
         return self._exchange.fetch_ticker(symbol)
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list:

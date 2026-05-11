@@ -729,9 +729,94 @@
         ]);
     }
 
+    function setupTestTradeModal() {
+        var overlay = $("testTradeModalOverlay");
+        var openBtn = $("openTestTradeModal");
+        var closeBtn = $("closeTestTradeModal");
+        var cancelBtn = $("cancelTestTrade");
+        var submitBtn = $("submitTestTrade");
+        var error = $("testTradeError");
+        var select = $("testTradeSymbol");
+
+        async function openModal() {
+            error.classList.add("hidden");
+            overlay.classList.add("visible");
+
+            // Fetch Gold List symbols
+            select.innerHTML = '<option value="">Loading...</option>';
+            var data = await fetchJSON("/api/gold_list");
+            if (data && data.symbols) {
+                select.innerHTML = data.symbols.map(function (s) {
+                    // Show clean name: "ADA/USDT:USDT" -> "ADA/USDT"
+                    var label = s.replace(":USDT", "");
+                    return '<option value="' + s + '">' + label + '</option>';
+                }).join("");
+            } else {
+                select.innerHTML = '<option value="">Failed to load</option>';
+            }
+
+            // Reset direction to LONG
+            selectTestDirection("LONG");
+        }
+
+        function closeModal() { overlay.classList.remove("visible"); }
+
+        openBtn.addEventListener("click", openModal);
+        closeBtn.addEventListener("click", closeModal);
+        cancelBtn.addEventListener("click", closeModal);
+        overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+
+        submitBtn.addEventListener("click", async function () {
+            var symbol = select.value;
+            var direction = $("testTradeDirection").value;
+
+            if (!symbol) {
+                error.textContent = "Please select a symbol.";
+                error.classList.remove("hidden");
+                return;
+            }
+
+            error.classList.add("hidden");
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Opening...";
+
+            var res = await postJSON("/api/trades/test", {
+                symbol: symbol,
+                direction: direction,
+            });
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Open Position";
+
+            if (res && res.success) {
+                closeModal();
+                refresh();
+            } else {
+                error.textContent = res ? res.error : "Failed to open test trade.";
+                error.classList.remove("hidden");
+            }
+        });
+    }
+
+    function selectTestDirection(dir) {
+        var longBtn = $("testDirLong");
+        var shortBtn = $("testDirShort");
+        $("testTradeDirection").value = dir;
+
+        if (dir === "LONG") {
+            longBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-profit transition-all cursor-pointer bg-profit/10 text-profit";
+            shortBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-white/[0.12] transition-all cursor-pointer bg-white/[0.04] text-gray-400";
+        } else {
+            shortBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-loss transition-all cursor-pointer bg-loss/10 text-loss";
+            longBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-white/[0.12] transition-all cursor-pointer bg-white/[0.04] text-gray-400";
+        }
+    }
+    window.selectTestDirection = selectTestDirection;
+
     setupConfigModal();
     setupSettingsModal();
     setupTargetModal();
+    setupTestTradeModal();
     setupCalendarModal();
     startCountdown();
     refresh();

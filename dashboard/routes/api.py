@@ -332,6 +332,133 @@ def api_update_config():
     return jsonify({"success": True})
 
 
+@api_bp.route("/api/gold_list")
+@login_required
+def api_gold_list():
+    """Return the Gold List coin symbols for the Test Trade dropdown"""
+    from azalyst.config import GOLD_COINS
+    return jsonify({"symbols": GOLD_COINS})
+
+
+@api_bp.route("/api/trades/test", methods=["POST"])
+@login_required
+def api_test_trade():
+    """Open a test/paper trade on a Gold List coin that appears in Open Positions"""
+    user_id = _verify_user()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    symbol = data.get("symbol", "")
+    direction_str = data.get("direction", "LONG").upper()
+
+    if not symbol:
+        return jsonify({"error": "Symbol is required"}), 400
+
+    from azalyst.config import GOLD_COINS, BUY, SELL
+    if symbol not in GOLD_COINS:
+        return jsonify({"error": f"{symbol} is not in the Gold List"}), 400
+
+    if symbol in _trader_instance.open_trades:
+        return jsonify({"error": f"{symbol} already has an open position"}), 400
+
+    direction = BUY if direction_str == "LONG" else SELL
+
+    try:
+        # Fetch current price for the symbol
+        ticker = _trader_instance.broker.fetch_ticker(symbol)
+        fill_price = ticker["last"]
+
+        # --- FIXED $6 NOTIONAL SIZE ---
+        notional_size = 6.0
+
+        # Get market precision from Binance to avoid rounding errors
+        try:
+            markets = _trader_instance.broker.load_markets()
+            market_info = markets.get(symbol, {})
+            precision = market_info.get("precision", {}).get("amount", 3)
+            min_notional = 5.0  # Binance futures minimum is typically $5
+            limits = market_info.get("limits", {}).get("cost", {})
+            if limits.get("min"):
+                min_notional = float(limits["min"])
+            # Ensure we meet minimum notional
+            if notional_size < min_notional:
+                notional_size = min_notional
+        except Exception:
+            precision = 3
+
+        qty = notional_size / fill_price
+        # Round DOWN to market precision (avoid over-ordering)
+        import math
+        factor = 10 ** precision
+        qty = math.floor(qty * factor) / factor
+
+        if qty <= 0:
+            return jsonify({"error": f"Trade size too small for {symbol}. Price ${fill_price:.2f} needs more than ${notional_size}"}), 400
+
+        # Use active personality for SL/TP parameters
+        p = _trader_instance.active_personality
+        sl_dist = fill_price * p.sl_min_pct
+        sl_price = fill_price - sl_dist if direction == BUY else fill_price + sl_dist
+        tp_dist = sl_dist * p.tp_rr_ratio
+        tp_price = fill_price + tp_dist if direction == BUY else fill_price - tp_dist
+
+        sl_dist_pct = abs(fill_price - sl_price) / fill_price * 100
+
+        # --- PLACE REAL ORDER ON BINANCE ---
+        if _trader_instance.broker.is_live:
+            side = "buy" if direction == BUY else "sell"
+            # 1. Set leverage (20x)
+            _trader_instance.broker.set_leverage(symbol, 20)
+            # 2. Place market order
+            from azalyst.logger import logger
+            logger.info(f"🧪 Placing test order: {side} {qty} {symbol} (~${notional_size})")
+            order = _trader_instance.broker.place_market_order(symbol, side, qty)
+            # Use fill price from order if available
+            if order and order.get("average"):
+                fill_price = float(order["average"])
+
+        from datetime import datetime, timezone
+        trade = {
+            "user_id": user_id,
+            "symbol": symbol,
+            "direction": direction,
+            "entry_price": fill_price,
+            "qty": qty,
+            "sl_price": sl_price,
+            "tp_price": tp_price,
+            "tp1": tp_price,
+            "tp2": None,
+            "sl_dist_pct": round(sl_dist_pct, 4),
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "scan_count": 0,
+            "max_price": fill_price,
+            "min_price": fill_price,
+            "signal": "MANUAL_TEST", # Changed from TEST_TRADE to MANUAL_TEST
+            "strategies": "manual_test",
+            "atr": sl_dist,
+            "is_alpha": False,
+            "extended": False,
+        }
+
+        _trader_instance.open_trades[symbol] = trade
+        _trader_instance._save_trade(trade, "open")
+
+        from azalyst.logger import logger
+        logger.info(f"🧪 REAL TEST TRADE OPENED: {symbol} {'LONG' if direction == BUY else 'SHORT'} @ ${fill_price:.4f} (Size: ${notional_size})")
+
+        return jsonify({
+            "success": True,
+            "symbol": symbol,
+            "direction": direction_str,
+            "entry_price": fill_price,
+            "qty": qty,
+            "notional": notional_size
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to open test trade: {str(e)}"}), 500
+
+
 @api_bp.route("/test_ping")
 def test_ping():
     return jsonify({"status": "healthy", "message": "pong"})
