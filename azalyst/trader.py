@@ -1126,8 +1126,8 @@ class LiveTrader:
             timeframes = [f"{CANDLE_TF_MIN}m", HTF_TIMEFRAME]
             self.gateway.start(self.symbols, timeframes)
 
-        logger.info("Waiting 3s for system to settle before entering main loop...")
-        time.sleep(3)
+        logger.info("Waiting 10s for system to settle before entering main loop...")
+        time.sleep(10)
 
         while self.running:
             try:
