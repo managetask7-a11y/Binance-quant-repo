@@ -490,9 +490,9 @@ class LiveTrader:
             logger.info(f"  ... and {len(self.symbols) - 5} more")
 
         if self.broker.is_live:
-            for symbol in self.symbols:
-                self.broker.set_leverage(symbol, LEVERAGE)
-                time.sleep(3.0) # Maximum safety delay to prevent IP bans during startup burst
+            logger.info("Skipping leverage setup as requested. Using account defaults.")
+            # No longer looping through symbols to set leverage to avoid API burst.
+            pass
 
         logger.info(f"Symbol refresh complete. Tracking {len(self.symbols)} symbols")
 
