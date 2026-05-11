@@ -715,6 +715,39 @@
 
     window.fetchServerIP = fetchServerIP;
 
+    async function runTestTrade() {
+        if (!confirm("🧪 This will open a tiny long position (~$6) on one of your tracked coins and immediately close it.\n\nThis is a REAL trade on your account to verify connectivity.\n\nProceed?")) return;
+
+        var btn = $("testTradeBtn");
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = "⏳ Testing...";
+        }
+
+        try {
+            var res = await fetch("/api/test_trade", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            var data = await res.json();
+
+            if (data.success) {
+                alert(data.message);
+            } else {
+                alert("❌ " + (data.error || "Test trade failed."));
+            }
+        } catch (e) {
+            alert("❌ Network error: " + e.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = "🧪 Test Trade";
+            }
+        }
+    }
+
+    window.runTestTrade = runTestTrade;
+
     async function updateEquityChart() {
         var data = await fetchJSON("/api/equity");
         renderEquityChart("equityChart", data);

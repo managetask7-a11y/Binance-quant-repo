@@ -330,6 +330,62 @@ def api_update_config():
     return jsonify({"success": True})
 
 
+@api_bp.route("/api/test_trade", methods=["POST"])
+@login_required
+def api_test_trade():
+    """Opens a tiny BTC long, then immediately closes it to verify full trade pipeline."""
+    if not _verify_user():
+        return jsonify({"error": "Unauthorized"}), 403
+    if not _trader_instance or not _trader_instance.broker.is_live:
+        return jsonify({"error": "Bot must be in LIVE mode to test a real trade."}), 400
+
+    # 1. Pick the first symbol from the current tracking list
+    symbols = _trader_instance.symbols
+    if not symbols:
+        return jsonify({"error": "No symbols are currently being tracked."}), 400
+    
+    symbol = symbols[0]
+    try:
+        broker = _trader_instance.broker
+
+        # 2. Fetch current price to calculate minimum qty
+        import ccxt
+        ticker = broker._exchange.fetch_ticker(symbol)
+        price = ticker.get("last", 0)
+        if not price:
+            return jsonify({"error": f"Could not fetch price for {symbol}."}), 500
+
+        # Calculate qty for ~$6.0 notional (Binance min is ~$5)
+        # We use a bit more ($6) to ensure we clear the minimum exactly
+        qty = 6.0 / price
+        
+        # Rounding for safety (most coins use 0-3 decimals)
+        if price > 1000: qty = round(qty, 4)
+        elif price > 10: qty = round(qty, 2)
+        else: qty = round(qty, 1)
+
+        # 3. Open a tiny LONG
+        logger.info(f"🧪 Running test trade on {symbol} (Qty: {qty} @ ${price})")
+        open_result = broker.place_market_order(symbol, "buy", qty)
+        if not open_result:
+            return jsonify({"error": f"Failed to open test position on {symbol}. Endpoint may be blocked."}), 500
+
+        # 4. Immediately close it
+        import time
+        time.sleep(1.5)
+        close_result = broker.place_market_order(symbol, "sell", qty)
+
+        return jsonify({
+            "success": True,
+            "message": f"✅ Test trade complete! Opened and closed {qty} {symbol.split('/')[0]} (~$6.00).",
+            "symbol": symbol,
+            "open_order": str(open_result.get("id", "N/A")),
+            "close_order": str(close_result.get("id", "N/A")) if close_result else "N/A"
+        })
+    except Exception as e:
+        return jsonify({"error": f"Test trade failed: {str(e)}"}), 500
+
+
 @api_bp.route("/test_ping")
 def test_ping():
     return jsonify({"status": "healthy", "message": "pong"})
