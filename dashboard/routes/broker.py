@@ -128,10 +128,8 @@ def disconnect_broker():
     supabase_db.upsert_config(user_id, "keys_encrypted", "false")
 
     if _trader_instance:
-        import ccxt
-        exchange = ccxt.binanceusdm({"enableRateLimit": True})
         from azalyst.brokers.demo import DemoBroker
-        _trader_instance.reconfigure(DemoBroker(exchange))
+        _trader_instance.reconfigure(DemoBroker())
 
     return jsonify({"success": True})
 
