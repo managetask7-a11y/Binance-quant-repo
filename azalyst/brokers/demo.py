@@ -6,7 +6,18 @@ from azalyst.brokers.base import BaseBroker
 class DemoBroker(BaseBroker):
 
     def __init__(self):
-        pass
+        import ccxt
+        # Use a public exchange instance for data fetching in demo mode
+        self._exchange = ccxt.binance({"options": {"defaultType": "future"}})
+        
+        # Add proxy support for demo mode too
+        import os
+        host = os.getenv("PROXY_HOST", "dc.oxylabs.io")
+        user = os.getenv("PROXY_USER")
+        pw = os.getenv("PROXY_PASS")
+        if user and pw:
+            proxy = f"http://{user}:{pw}@{host}:8001"
+            self._exchange.proxies = {"http": proxy, "https": proxy}
 
     @property
     def is_live(self) -> bool:
@@ -14,6 +25,12 @@ class DemoBroker(BaseBroker):
 
     def validate_connection(self) -> dict:
         return {"success": True, "balance": 0.0, "mode": "demo"}
+
+    def fetch_ohlcv(self, symbol: str, tf: str = "15m", limit: int = 250):
+        try:
+            return self._exchange.fetch_ohlcv(symbol, tf, limit=limit)
+        except Exception:
+            return []
 
     def place_market_order(self, symbol: str, side: str, qty: float) -> dict:
         return {"id": "DEMO", "symbol": symbol, "side": side, "qty": qty, "status": "filled"}
@@ -25,4 +42,7 @@ class DemoBroker(BaseBroker):
         pass
 
     def load_markets(self) -> dict:
-        return {}
+        try:
+            return self._exchange.load_markets()
+        except Exception:
+            return {}

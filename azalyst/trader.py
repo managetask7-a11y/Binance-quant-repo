@@ -466,23 +466,33 @@ class LiveTrader:
 
         if self.gateway and self.gateway._markets:
             markets = self.gateway._markets
-            verified_symbols = []
-            for s in GOLD_COINS:
-                if s in markets and markets[s].get("active", True):
-                    verified_symbols.append(s)
-            self.symbols = verified_symbols[:scan_limit]
         else:
             try:
                 markets = self.broker.load_markets()
-                verified_symbols = []
-                for s in GOLD_COINS:
-                    if s in markets and markets[s].get("active", True):
-                        verified_symbols.append(s)
-                self.symbols = verified_symbols[:scan_limit]
             except Exception as e:
-                logger.warning(f"Failed to verify symbols: {e}")
-                self.symbols = GOLD_COINS[:scan_limit]
+                logger.warning(f"Failed to load markets for verification: {e}")
+                markets = {}
 
+        verified_symbols = []
+        if markets:
+            # Case-insensitive and flexible matching
+            market_keys = {k.upper(): k for k in markets.keys()}
+            for s in GOLD_COINS:
+                s_upper = s.upper()
+                if s_upper in market_keys:
+                    actual_key = market_keys[s_upper]
+                    if markets[actual_key].get("active", True):
+                        verified_symbols.append(actual_key)
+                elif s_upper.replace(":USDT", "") in market_keys:
+                    actual_key = market_keys[s_upper.replace(":USDT", "")]
+                    verified_symbols.append(actual_key)
+        
+        # Fallback: If verification failed or returned nothing, use GOLD_COINS as-is
+        if not verified_symbols:
+            logger.info("Verification returned 0 symbols. Using Gold List as-is.")
+            verified_symbols = GOLD_COINS
+
+        self.symbols = verified_symbols[:scan_limit]
         logger.info(f"Selected {len(self.symbols)} symbols")
         for s in self.symbols[:5]:
             logger.info(f"  - {s}")
@@ -519,8 +529,56 @@ class LiveTrader:
         )
 
     def fetch_ohlcv(self, symbol: str, tf: str = "15m", limit: int = 250) -> pd.DataFrame:
+        # --- SYSTEM-WIDE ANTI-BAN DELAY ---
+        import time
+        
+        # Check for active ban cooldown
+        if hasattr(self, "ban_cooldown_until") and time.time() < self.ban_cooldown_until:
+            wait_remaining = int(self.ban_cooldown_until - time.time())
+            if wait_remaining % 60 == 0: # Log every minute
+                logger.warn(f"Still in Binance ban cooldown... {wait_remaining}s remaining.")
+            return pd.DataFrame()
+
+        # Increased delay for maximum safety
+        time.sleep(3)
+        
         if self.gateway:
             return self.gateway.get_ohlcv_df(symbol, tf, limit)
+            
+        # Fallback to broker fetch
+        for attempt in range(3):
+            try:
+                ohlcv = self.broker.fetch_ohlcv(symbol, tf, limit)
+                if not ohlcv: return pd.DataFrame()
+                
+                df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+                df.set_index("timestamp", inplace=True)
+                
+                # --- CRITICAL FIX: Drop Incomplete Candles ---
+                now = pd.Timestamp.now(tz="UTC")
+                if "m" in tf:
+                    tf_minutes = int(tf.replace("m", ""))
+                elif "h" in tf:
+                    tf_minutes = int(tf.replace("h", "")) * 60
+                else:
+                    tf_minutes = 15
+                
+                # Drop the last candle if it's not yet complete
+                last_candle_time = df.index[-1]
+                if now < last_candle_time + pd.Timedelta(minutes=tf_minutes):
+                    df = df.iloc[:-1]
+                    
+                return df
+            except Exception as e:
+                err_str = str(e).lower()
+                if "418" in err_str or "teapot" in err_str:
+                    logger.error("🛑 BINANCE IP BAN DETECTED (418). Entering 10-minute cooldown...")
+                    self.ban_cooldown_until = time.time() + 600
+                    return pd.DataFrame()
+                
+                logger.warn(f"Failed to fetch {symbol} (attempt {attempt + 1}): {e}")
+                time.sleep(2 ** attempt)
         return pd.DataFrame()
 
     def check_prop_firm_limits(self) -> bool:

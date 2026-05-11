@@ -16,46 +16,84 @@ class LiveBinanceBroker(BaseBroker):
         self._api_key = api_key
         self._api_secret = api_secret
         self._testnet = testnet
+        
+        # Smart Proxy Rotation Config (Loaded from .env)
+        import os
+        self._proxy_host = os.getenv("PROXY_HOST", "dc.oxylabs.io")
+        self._proxy_user = os.getenv("PROXY_USER")
+        self._proxy_pass = os.getenv("PROXY_PASS")
+        self._proxy_ports = [8001, 8002, 8003, 8004, 8005]
+        self._current_proxy_idx = 0
+        
         self._exchange = self._build_exchange()
 
+    @property
+    def is_live(self) -> bool:
+        return True
+
     def _build_exchange(self) -> ccxt.binance:
-        exchange = ccxt.binanceusdm({
+        config = {
             "apiKey": self._api_key,
             "secret": self._api_secret,
             "enableRateLimit": True,
-        })
+            "options": {"defaultType": "future"}
+        }
+        
+        # Initialize first proxy
+        if self._proxy_user and self._proxy_pass:
+            port = self._proxy_ports[self._current_proxy_idx]
+            proxy = f"http://{self._proxy_user}:{self._proxy_pass}@{self._proxy_host}:{port}"
+            logger.info(f"Connecting via Oxylabs Proxy (Port {port})")
+            
+            config["proxies"] = {
+                "http": proxy,
+                "https": proxy,
+            }
+            
+        exchange = ccxt.binanceusdm(config)
         if self._testnet:
             exchange.set_sandbox_mode(True)
         return exchange
 
+    def _rotate_proxy(self):
+        """Switches to the next available proxy port in the pool."""
+        self._current_proxy_idx = (self._current_proxy_idx + 1) % len(self._proxy_ports)
+        port = self._proxy_ports[self._current_proxy_idx]
+        proxy = f"http://{self._proxy_user}:{self._proxy_pass}@{self._proxy_host}:{port}"
+        
+        self._exchange.proxies = {
+            "http": proxy,
+            "https": proxy,
+        }
+        logger.info(f"🔄 IP Block detected. Rotating to Oxylabs Proxy Port {port}...")
+
     def _safe_execute(self, func_name: str, *args, **kwargs):
-        """Executes a method with automatic fallback to stealth endpoint if blocked."""
+        """Executes a method with automatic proxy rotation if blocked."""
         endpoints = [
             "https://fapi.binance.com",
             "https://fapi1.binance.com",
             "https://fapi2.binance.com"
         ]
         
-        last_exception = None
-        for i, url in enumerate(endpoints):
+        for url in endpoints:
             try:
                 self._exchange.urls['api']['fapi'] = url
                 method = getattr(self._exchange, func_name)
                 return method(*args, **kwargs)
             except Exception as e:
-                last_exception = e
                 err_msg = str(e).lower()
-                # If it's a rate limit or IP ban, try the next endpoint
+                # If it's a rate limit or IP ban, rotate PROXY first, then try next endpoint
                 if "418" in err_msg or "1003" in err_msg or "ddos" in err_msg:
+                    self._rotate_proxy()
                     logger.debug(f"Endpoint {url} blocked, trying next...")
+                    time.sleep(1) # Small pause after rotation
                     continue
-                # For other errors (like balance or leverage limits), don't retry on other endpoints
                 raise e
         
-        # If we reach here, ALL endpoints are blocked. 
-        # Log it and return None instead of crashing.
-        logger.warning(f"CRITICAL: All Binance endpoints are currently blocking IP {self._exchange.enableRateLimit}. Skipping {func_name}.")
-        return None
+        # If we reach here, ALL endpoints AND all proxies might be struggling
+        msg = f"CRITICAL: All Binance endpoints and current proxy port are blocked. Skipping {func_name}."
+        logger.warning(msg)
+        raise RuntimeError(msg)
 
     @property
     def is_live(self) -> bool:
