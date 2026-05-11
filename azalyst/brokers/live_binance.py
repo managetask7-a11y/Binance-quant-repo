@@ -97,20 +97,16 @@ class LiveBinanceBroker(BaseBroker):
     def _safe_execute(self, func_name: str, *args, **kwargs):
         """Executes a method with automatic proxy rotation if blocked."""
         endpoints = [
-            "https://fapi.binance.com/fapi/v1",
-            "https://fapi1.binance.com/fapi/v1",
-            "https://fapi2.binance.com/fapi/v1",
-            "https://fapi3.binance.com/fapi/v1"
+            "https://fapi.binance.com",
+            "https://fapi1.binance.com",
+            "https://fapi2.binance.com",
+            "https://fapi3.binance.com"
         ]
         
         for url in endpoints:
             try:
-                # Update all possible Futures URL keys in CCXT
                 self._exchange.urls['api']['fapiPublic'] = url
                 self._exchange.urls['api']['fapiPrivate'] = url
-                self._exchange.urls['api']['fapi'] = url
-                self._exchange.urls['api']['public'] = url
-                self._exchange.urls['api']['private'] = url
                 
                 method = getattr(self._exchange, func_name)
                 return method(*args, **kwargs)
@@ -118,7 +114,6 @@ class LiveBinanceBroker(BaseBroker):
                 err_msg = str(e).lower()
                 err_type = type(e).__name__.lower()
                 
-                # Check for rate limits, IP blocks, or general proxy/network failures
                 is_rate_limit = any(x in err_msg for x in ["418", "1003", "ddos", "blocked", "teapot"])
                 is_network_err = any(x in err_type for x in ["network", "timeout", "connect", "proxy", "badgateway"])
                 is_server_err = any(x in err_msg for x in ["502", "503", "504", "gateway", "unavailable"])
