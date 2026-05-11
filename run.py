@@ -37,7 +37,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Force paper trading mode")
     parser.add_argument("--dashboard", action="store_true", default=True, help="Launch web dashboard")
     parser.add_argument("--no-dashboard", action="store_true", help="Disable web dashboard")
-    parser.add_argument("--port", type=int, default=8080, help="Dashboard port")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8080)), help="Dashboard port")
     args = parser.parse_args()
 
     active_user_id = None
