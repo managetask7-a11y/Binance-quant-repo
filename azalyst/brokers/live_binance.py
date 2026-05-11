@@ -113,7 +113,7 @@ class LiveBinanceBroker(BaseBroker):
 
     def validate_connection(self) -> dict:
         try:
-            balance_data = self._exchange.fetch_balance()
+            balance_data = self._safe_execute("fetch_balance")
             usdt_balance = float(
                 balance_data.get("USDT", {}).get("total", 0.0) or
                 balance_data.get("total", {}).get("USDT", 0.0)
@@ -133,6 +133,20 @@ class LiveBinanceBroker(BaseBroker):
             return {"success": False, "error": "Insufficient funds.", "detail": str(exc)}
         except Exception as exc:
             return {"success": False, "error": "Connection failed.", "detail": str(exc)}
+
+    def fetch_ohlcv(self, symbol: str, tf: str = "15m", limit: int = 250):
+        return self._safe_execute("fetch_ohlcv", symbol, tf, limit=limit)
+
+    def fetch_balance(self) -> float:
+        try:
+            balance_data = self._safe_execute("fetch_balance")
+            return float(
+                balance_data.get("USDT", {}).get("total", 0.0) or
+                balance_data.get("total", {}).get("USDT", 0.0)
+            )
+        except Exception as e:
+            logger.error(f"Failed to fetch balance: {e}")
+            return 0.0
 
     def place_market_order(self, symbol: str, side: str, qty: float) -> dict:
         return self._safe_execute("create_market_order", symbol, side, qty)
