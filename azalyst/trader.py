@@ -510,6 +510,18 @@ class LiveTrader:
         logger.info("=" * 80)
         logger.info("AZALYST ALPHA X — MULTI STRATEGY LIVE TRADER")
         logger.info("=" * 80)
+        
+        # --- NEW: PROXY HEALTH CHECK ---
+        if hasattr(self.broker, "test_proxy"):
+            if not self.broker.test_proxy():
+                logger.error("🛑 CRITICAL: Proxy Health Check failed! Stopping bot for safety.")
+                self.running = False
+                return
+        
+        # --- NEW: FORCED MARKET LOADING ---
+        logger.info("Syncing with Binance Futures markets...")
+        self._refresh_top_coins()
+        
         logger.info(f"Mode: {'DRY RUN (Paper Trading)' if self.dry_run else 'LIVE TRADING'}")
         logger.info(f"Leverage: {LEVERAGE}x | Risk/Trade: {RISK_PER_TRADE * 100}%")
         logger.info(f"Max DD: {PROP_MAX_DRAWDOWN_PCT}% | Daily Loss: {PROP_DAILY_LOSS_PCT}%")

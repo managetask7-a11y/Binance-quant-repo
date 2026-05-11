@@ -70,22 +70,44 @@ class LiveBinanceBroker(BaseBroker):
             "http": proxy,
             "https": proxy,
         }
-        logger.info(f"🔄 IP Block detected. Rotating to Oxylabs Proxy Port {port}...")
+        logger.info(f"🔄 Network issue. Rotating to Oxylabs Proxy Port {port}...")
+
+    def test_proxy(self) -> bool:
+        """Verifies that the proxy is actually working and masking the IP."""
+        if not self._proxy_user: return True
+        try:
+            # Try to get external IP through the proxy
+            import requests
+            port = self._proxy_ports[self._current_proxy_idx]
+            proxy_url = f"http://{self._proxy_user}:{self._proxy_pass}@{self._proxy_host}:{port}"
+            proxies = {"http": proxy_url, "https": proxy_url}
+            
+            resp = requests.get("https://api.ipify.org?format=json", proxies=proxies, timeout=10)
+            if resp.status_code == 200:
+                my_ip = resp.json().get("ip")
+                logger.info(f"✅ Proxy Health Check: SUCCESS. External IP: {my_ip} (Port {port})")
+                return True
+            else:
+                logger.warning(f"⚠️ Proxy Health Check: FAILED (Status {resp.status_code})")
+                return False
+        except Exception as e:
+            logger.warning(f"❌ Proxy Health Check: ERROR - {e}")
+            return False
 
     def _safe_execute(self, func_name: str, *args, **kwargs):
         """Executes a method with automatic proxy rotation if blocked."""
         endpoints = [
-            "https://fapi.binance.com",
-            "https://fapi1.binance.com",
-            "https://fapi2.binance.com",
-            "https://fapi3.binance.com",
-            "https://fapi4.binance.com",
-            "https://fapi5.binance.com"
+            "https://fapi.binance.com/fapi/v1",
+            "https://fapi1.binance.com/fapi/v1",
+            "https://fapi2.binance.com/fapi/v1",
+            "https://fapi3.binance.com/fapi/v1"
         ]
         
         for url in endpoints:
             try:
-                # Update only the relevant fapi and public/private endpoints
+                # Update all possible Futures URL keys in CCXT
+                self._exchange.urls['api']['fapiPublic'] = url
+                self._exchange.urls['api']['fapiPrivate'] = url
                 self._exchange.urls['api']['fapi'] = url
                 self._exchange.urls['api']['public'] = url
                 self._exchange.urls['api']['private'] = url
@@ -94,16 +116,23 @@ class LiveBinanceBroker(BaseBroker):
                 return method(*args, **kwargs)
             except Exception as e:
                 err_msg = str(e).lower()
-                # If it's a rate limit or IP ban, rotate PROXY first, then try next endpoint
-                if any(x in err_msg for x in ["418", "1003", "ddos", "blocked", "teapot"]):
+                err_type = type(e).__name__.lower()
+                
+                # Check for rate limits, IP blocks, or general proxy/network failures
+                is_rate_limit = any(x in err_msg for x in ["418", "1003", "ddos", "blocked", "teapot"])
+                is_network_err = any(x in err_type for x in ["network", "timeout", "connect", "proxy", "badgateway"])
+                is_server_err = any(x in err_msg for x in ["502", "503", "504", "gateway", "unavailable"])
+                
+                if is_rate_limit or is_network_err or is_server_err:
                     self._rotate_proxy()
-                    logger.debug(f"Endpoint {url} blocked, trying next...")
-                    time.sleep(1.5)
+                    logger.debug(f"Endpoint {url} error ({type(e).__name__}), rotating proxy and trying next...")
+                    time.sleep(2)
                     continue
+                
                 raise e
         
         # If we reach here, ALL endpoints AND all proxies might be struggling
-        msg = f"CRITICAL: All Binance endpoints and current proxy port are blocked. Skipping {func_name}."
+        msg = f"CRITICAL: All Binance endpoints and all proxy ports are failing for {func_name}."
         logger.warning(msg)
         raise RuntimeError(msg)
 
