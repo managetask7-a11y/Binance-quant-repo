@@ -333,18 +333,25 @@ def api_update_config():
 @api_bp.route("/api/test_trade", methods=["POST"])
 @login_required
 def api_test_trade():
-    """Opens a tiny BTC long, then immediately closes it to verify full trade pipeline."""
+    """Opens a tiny long, then immediately closes it to verify full trade pipeline."""
     if not _verify_user():
         return jsonify({"error": "Unauthorized"}), 403
     if not _trader_instance or not _trader_instance.broker.is_live:
         return jsonify({"error": "Bot must be in LIVE mode to test a real trade."}), 400
 
-    # 1. Pick the first symbol from the current tracking list
+    data = request.get_json(silent=True) or {}
+    req_symbol = data.get("symbol")
+
+    # 1. Pick symbol: specified or first from tracking list
     symbols = _trader_instance.symbols
     if not symbols:
         return jsonify({"error": "No symbols are currently being tracked."}), 400
     
-    symbol = symbols[0]
+    if req_symbol and req_symbol in symbols:
+        symbol = req_symbol
+    else:
+        symbol = symbols[0]
+
     try:
         broker = _trader_instance.broker
 

@@ -496,9 +496,14 @@
         input.addEventListener("keydown", function (e) { if (e.key === "Enter") saveBtn.click(); });
     }
 
+    var activeSymbols = [];
+
     async function updateStatus() {
         var data = await fetchJSON("/api/status");
         if (!data) return;
+
+        activeSymbols = data.symbols || [];
+        updateTestTradeDropdown();
 
         $("metricBalance").textContent = "$" + parseFloat(data.balance).toLocaleString("en-US", { minimumFractionDigits: 2 });
         $("metricBalance").className = "metric-value";
@@ -715,24 +720,70 @@
 
     window.fetchServerIP = fetchServerIP;
 
-    async function runTestTrade() {
-        if (!confirm("🧪 This will open a tiny long position (~$6) on one of your tracked coins and immediately close it.\n\nThis is a REAL trade on your account to verify connectivity.\n\nProceed?")) return;
+    function updateTestTradeDropdown() {
+        var select = $("testTradeSymbolSelect");
+        if (!select) return;
+        
+        // Only update if symbol count changed or select is empty
+        if (select.options.length - 1 === activeSymbols.length && select.options.length > 1) return;
+        
+        var currentVal = select.value;
+        select.innerHTML = '<option value="">-- Select a Symbol --</option>';
+        activeSymbols.forEach(function(s) {
+            var opt = document.createElement("option");
+            opt.value = s;
+            opt.textContent = s.split(":")[0]; // Show simplified symbol
+            select.appendChild(opt);
+        });
+        if (currentVal) select.value = currentVal;
+    }
 
-        var btn = $("testTradeBtn");
+    function setupTestTradeModal() {
+        var modal = $("testTradeModalOverlay");
+        var openBtn = $("testTradeBtn");
+        var closeBtn = $("closeTestTradeModal");
+        var cancelBtn = $("cancelTestTrade");
+        var executeBtn = $("executeTestTradeBtn");
+
+        if (!modal || !openBtn) return;
+
+        openBtn.onclick = function() { modal.classList.add("active"); };
+        
+        var closeFn = function() { modal.classList.remove("active"); };
+        closeBtn.onclick = closeFn;
+        cancelBtn.onclick = closeFn;
+
+        executeBtn.onclick = runTestTrade;
+    }
+
+    async function runTestTrade() {
+        var symbol = $("testTradeSymbolSelect").value;
+        if (!symbol) {
+            alert("Please select a symbol first.");
+            return;
+        }
+
+        if (!confirm(`🧪 This will open a tiny ${symbol.split('/')[0]} long position (~$6) and immediately close it.\n\nProceed?`)) return;
+
+        var btn = $("executeTestTradeBtn");
+        var modal = $("testTradeModalOverlay");
+        
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = "⏳ Testing...";
+            btn.innerHTML = "⏳ Executing...";
         }
 
         try {
             var res = await fetch("/api/test_trade", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ symbol: symbol })
             });
             var data = await res.json();
 
             if (data.success) {
                 alert(data.message);
+                modal.classList.remove("active");
             } else {
                 alert("❌ " + (data.error || "Test trade failed."));
             }
@@ -741,7 +792,7 @@
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = "🧪 Test Trade";
+                btn.innerHTML = "Execute Test";
             }
         }
     }
@@ -766,6 +817,7 @@
     setupSettingsModal();
     setupTargetModal();
     setupCalendarModal();
+    setupTestTradeModal();
     startCountdown();
     refresh();
     setInterval(refresh, REFRESH_MS);

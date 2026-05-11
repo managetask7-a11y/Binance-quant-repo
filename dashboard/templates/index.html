@@ -152,6 +152,31 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="testTradeModalOverlay">
+    <div class="modal-card">
+        <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
+            <h3 class="text-base font-bold">🧪 Run Test Trade</h3>
+            <button class="text-gray-500 text-xl hover:text-gray-200 transition-colors px-2 py-1 rounded" id="closeTestTradeModal">&times;</button>
+        </div>
+        <div class="p-6">
+            <p class="text-sm text-gray-400 leading-relaxed mb-5">Select a symbol from your active Gold List to perform a tiny test trade (~$6 notional). This verifies your full execution pipeline.</p>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Select Symbol</label>
+                <select id="testTradeSymbolSelect" class="w-full bg-surface-800 border border-white/[0.06] rounded-[10px] px-4 py-3 font-mono text-base font-semibold text-gray-200 focus:outline-none focus:border-accent-cyan/50 focus:ring-2 focus:ring-accent-cyan/10 transition-all cursor-pointer">
+                    <option value="">-- No symbols available --</option>
+                </select>
+            </div>
+            <div class="bg-surface-800/50 border border-white/[0.04] rounded-[10px] p-4 text-[0.7rem] text-gray-500 italic">
+                Note: The bot will open a tiny LONG position and immediately close it.
+            </div>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
+            <button class="flex-1 py-2.5 rounded-[10px] text-sm font-semibold bg-white/[0.04] border border-white/[0.06] text-gray-400 hover:bg-white/[0.08] hover:text-gray-200 transition-all cursor-pointer" id="cancelTestTrade">Cancel</button>
+            <button class="flex-1 py-2.5 rounded-[10px] text-sm font-semibold bg-gradient-to-r from-accent-cyan to-accent-blue text-white border-none hover:-translate-y-px hover:shadow-[0_4px_20px_rgba(0,240,255,0.25)] transition-all cursor-pointer" id="executeTestTradeBtn">Execute Test</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="calendarModalOverlay">
     <div class="modal-card w-[460px]">
         <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">

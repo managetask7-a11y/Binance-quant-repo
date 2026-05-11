@@ -350,6 +350,7 @@ class LiveTrader:
             "personality": self.active_personality.name,
             "scan_limit": self.active_personality.scan_limit,
             "order_cap": self._apply_order_cap(),
+            "symbols": self.symbols
         }
 
     def get_open_trades(self) -> list:
