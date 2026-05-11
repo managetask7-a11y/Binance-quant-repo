@@ -36,7 +36,11 @@ class LiveBinanceBroker(BaseBroker):
             "apiKey": self._api_key,
             "secret": self._api_secret,
             "enableRateLimit": True,
-            "options": {"defaultType": "future"}
+            "adjustForTimeDifference": True,
+            "options": {
+                "defaultType": "future",
+                "warnOnFetchBalance": False
+            }
         }
         
         # Initialize first proxy
@@ -72,21 +76,28 @@ class LiveBinanceBroker(BaseBroker):
         endpoints = [
             "https://fapi.binance.com",
             "https://fapi1.binance.com",
-            "https://fapi2.binance.com"
+            "https://fapi2.binance.com",
+            "https://fapi3.binance.com",
+            "https://fapi4.binance.com",
+            "https://fapi5.binance.com"
         ]
         
         for url in endpoints:
             try:
+                # Update only the relevant fapi and public/private endpoints
                 self._exchange.urls['api']['fapi'] = url
+                self._exchange.urls['api']['public'] = url
+                self._exchange.urls['api']['private'] = url
+                
                 method = getattr(self._exchange, func_name)
                 return method(*args, **kwargs)
             except Exception as e:
                 err_msg = str(e).lower()
                 # If it's a rate limit or IP ban, rotate PROXY first, then try next endpoint
-                if "418" in err_msg or "1003" in err_msg or "ddos" in err_msg:
+                if any(x in err_msg for x in ["418", "1003", "ddos", "blocked", "teapot"]):
                     self._rotate_proxy()
                     logger.debug(f"Endpoint {url} blocked, trying next...")
-                    time.sleep(1) # Small pause after rotation
+                    time.sleep(1.5)
                     continue
                 raise e
         
