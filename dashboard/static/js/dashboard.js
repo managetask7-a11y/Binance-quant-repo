@@ -724,15 +724,24 @@
         var select = $("testTradeSymbolSelect");
         if (!select) return;
         
-        // Only update if symbol count changed or select is empty
-        if (select.options.length - 1 === activeSymbols.length && select.options.length > 1) return;
+        // If we have symbols and the dropdown is still showing the empty/loading state, force update
+        if (activeSymbols.length > 0 && (select.options.length <= 1 || select.options[0].textContent.includes("available"))) {
+            // Proceed to update
+        } else if (select.options.length - 1 === activeSymbols.length && select.options.length > 1) {
+            return; // Already up to date
+        }
         
         var currentVal = select.value;
+        if (activeSymbols.length === 0) {
+            select.innerHTML = '<option value="">-- ⏳ Syncing Gold List... --</option>';
+            return;
+        }
+
         select.innerHTML = '<option value="">-- Select a Symbol --</option>';
         activeSymbols.forEach(function(s) {
             var opt = document.createElement("option");
             opt.value = s;
-            opt.textContent = s.split(":")[0]; // Show simplified symbol
+            opt.textContent = s.split(":")[0]; 
             select.appendChild(opt);
         });
         if (currentVal) select.value = currentVal;
@@ -747,9 +756,9 @@
 
         if (!modal || !openBtn) return;
 
-        openBtn.onclick = function() { modal.classList.add("active"); };
+        openBtn.onclick = function() { modal.classList.add("visible"); };
         
-        var closeFn = function() { modal.classList.remove("active"); };
+        var closeFn = function() { modal.classList.remove("visible"); };
         closeBtn.onclick = closeFn;
         cancelBtn.onclick = closeFn;
 
@@ -783,7 +792,7 @@
 
             if (data.success) {
                 alert(data.message);
-                modal.classList.remove("active");
+                modal.classList.remove("visible");
             } else {
                 alert("❌ " + (data.error || "Test trade failed."));
             }

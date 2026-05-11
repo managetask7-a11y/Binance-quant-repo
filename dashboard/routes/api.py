@@ -1,5 +1,8 @@
 from flask import Blueprint, jsonify, request, session
 import requests
+import logging
+
+logger = logging.getLogger(__name__)
 from dashboard.routes.auth import login_required
 from azalyst import db as supabase_db
 from azalyst.config import (

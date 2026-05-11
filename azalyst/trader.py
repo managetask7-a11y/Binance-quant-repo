@@ -469,20 +469,25 @@ class LiveTrader:
             markets = self.gateway._markets
             verified_symbols = []
             for s in GOLD_COINS:
-                if s in markets and markets[s].get("active", True):
+                if s in markets:
                     verified_symbols.append(s)
             self.symbols = verified_symbols[:scan_limit]
         else:
             try:
-                markets = self.broker.load_markets()
+                markets = self.broker.load_markets() or {}
                 verified_symbols = []
                 for s in GOLD_COINS:
-                    if s in markets and markets[s].get("active", True):
+                    if s in markets:
                         verified_symbols.append(s)
                 self.symbols = verified_symbols[:scan_limit]
             except Exception as e:
                 logger.warning(f"Failed to verify symbols: {e}")
-                self.symbols = GOLD_COINS[:scan_limit]
+                self.symbols = []
+
+        # CRITICAL FALLBACK: If we still have 0 symbols, just use the Gold List directly
+        if not self.symbols:
+            logger.info("⚠️ No verified symbols found. Falling back to raw Gold List.")
+            self.symbols = GOLD_COINS[:scan_limit]
 
         logger.info(f"Selected {len(self.symbols)} symbols")
         for s in self.symbols[:5]:
