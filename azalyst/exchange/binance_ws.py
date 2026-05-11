@@ -55,6 +55,24 @@ class BinanceWebSocketManager:
         self._user_backoff = _INITIAL_BACKOFF
         self._streams: List[str] = []
         self._subscribed_symbols: set = set()
+        
+        # Proxy Configuration
+        import os
+        self._proxy_host = os.getenv("PROXY_HOST", "dc.oxylabs.io")
+        self._proxy_user = os.getenv("PROXY_USER")
+        self._proxy_pass = os.getenv("PROXY_PASS")
+        self._proxy_ports = [8001, 8002, 8003, 8004, 8005]
+        self._current_proxy_idx = 0
+
+    def _get_current_proxy(self) -> Optional[str]:
+        if not self._proxy_user or not self._proxy_pass:
+            return None
+        port = self._proxy_ports[self._current_proxy_idx]
+        return f"http://{self._proxy_user}:{self._proxy_pass}@{self._proxy_host}:{port}"
+
+    def _rotate_proxy(self):
+        self._current_proxy_idx = (self._current_proxy_idx + 1) % len(self._proxy_ports)
+        logger.info(f"🔄 Rotating WS proxy to port {self._proxy_ports[self._current_proxy_idx]}...")
 
     @property
     def is_connected(self) -> bool:
@@ -102,10 +120,11 @@ class BinanceWebSocketManager:
             try:
                 self._public_state = ConnectionState.CONNECTING
                 url = self._build_combined_url(streams)
-                logger.info(f"WS connecting to {len(streams)} public streams")
-
+                proxy = self._get_current_proxy()
+                
                 async with self._session.ws_connect(
                     url,
+                    proxy=proxy,
                     heartbeat=_HEARTBEAT_INTERVAL,
                     timeout=aiohttp.ClientWSTimeout(ws_close=10),
                 ) as ws:
@@ -149,10 +168,12 @@ class BinanceWebSocketManager:
 
                 self._listen_key = listen_key
                 url = f"{self._base_ws}/ws/{listen_key}"
-                logger.info("WS user data stream connecting")
+                proxy = self._get_current_proxy()
+                logger.info(f"WS user data stream connecting via proxy {self._proxy_ports[self._current_proxy_idx]}")
 
                 async with self._session.ws_connect(
                     url,
+                    proxy=proxy,
                     heartbeat=_HEARTBEAT_INTERVAL,
                     timeout=aiohttp.ClientWSTimeout(ws_close=10),
                 ) as ws:
@@ -175,6 +196,8 @@ class BinanceWebSocketManager:
                 return
             except Exception as e:
                 logger.error(f"WS user data connection failed: {e}")
+                if "418" in str(e) or "1003" in str(e):
+                    self._rotate_proxy()
 
             if not self._running:
                 return
@@ -268,10 +291,13 @@ class BinanceWebSocketManager:
         try:
             url = f"{self._base_rest}/fapi/v1/listenKey"
             headers = {"X-MBX-APIKEY": self._api_key}
-            async with self._session.post(url, headers=headers) as resp:
+            proxy = self._get_current_proxy()
+            async with self._session.post(url, headers=headers, proxy=proxy) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return data.get("listenKey")
+                if resp.status == 418:
+                    self._rotate_proxy()
                 logger.error(f"Failed to create listenKey: HTTP {resp.status}")
                 return None
         except Exception as e:
@@ -284,8 +310,11 @@ class BinanceWebSocketManager:
         try:
             url = f"{self._base_rest}/fapi/v1/listenKey"
             headers = {"X-MBX-APIKEY": self._api_key}
-            async with self._session.put(url, headers=headers) as resp:
+            proxy = self._get_current_proxy()
+            async with self._session.put(url, headers=headers, proxy=proxy) as resp:
                 if resp.status != 200:
+                    if resp.status == 418:
+                        self._rotate_proxy()
                     logger.warn(f"listenKey refresh failed: HTTP {resp.status}")
         except Exception as e:
             logger.warn(f"listenKey refresh error: {e}")
