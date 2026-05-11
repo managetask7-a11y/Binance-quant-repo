@@ -39,7 +39,8 @@ class LiveBinanceBroker(BaseBroker):
             "adjustForTimeDifference": True,
             "options": {
                 "defaultType": "future",
-                "warnOnFetchBalance": False
+                "warnOnFetchBalance": False,
+                "fetchCurrencies": False  # Crucial: prevents CCXT from hitting Spot API (sapi)
             }
         }
         

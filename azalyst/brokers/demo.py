@@ -8,7 +8,10 @@ class DemoBroker(BaseBroker):
     def __init__(self):
         import ccxt
         # Use a public exchange instance for data fetching in demo mode
-        self._exchange = ccxt.binance({"options": {"defaultType": "future"}})
+        self._exchange = ccxt.binance({"options": {
+            "defaultType": "future",
+            "fetchCurrencies": False
+        }})
         
         # Add proxy support for demo mode too
         import os
