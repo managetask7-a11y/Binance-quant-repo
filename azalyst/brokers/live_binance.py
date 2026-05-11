@@ -96,48 +96,11 @@ class LiveBinanceBroker(BaseBroker):
 
     def place_sl_tp(self, symbol: str, side: str, qty: float, sl_price: float, tp_price: float) -> dict:
         """
-        Place real Stop Loss and Take Profit orders on Binance Futures.
-        Uses 'STOP' and 'TAKE_PROFIT' which are widely supported 'Algo Orders'.
+        Virtual Stop Loss and Take Profit tracking.
+        We no longer place physical resting orders on Binance. The engine tracks these locally.
         """
-        results = {"sl": None, "tp": None}
-        try:
-            # 1. Place Stop Loss
-            # For Binance Futures, 'STOP' with stopPrice is the safest 'Algo' way
-            results["sl"] = self._exchange.create_order(
-                symbol=symbol,
-                type="STOP",
-                side=side,
-                amount=qty,
-                price=sl_price, # Limit price
-                params={
-                    "stopPrice": sl_price, # Trigger price
-                    "reduceOnly": True,
-                    "workingType": "MARK_PRICE"
-                }
-            )
-            logger.info(f"📍 Real Stop Loss placed for {symbol} at ${sl_price:.4f}")
-        except Exception as e:
-            logger.error(f"❌ Failed to place Real SL for {symbol}: {e}")
-
-        try:
-            # 2. Place Take Profit
-            results["tp"] = self._exchange.create_order(
-                symbol=symbol,
-                type="TAKE_PROFIT",
-                side=side,
-                amount=qty,
-                price=tp_price, # Limit price
-                params={
-                    "stopPrice": tp_price, # Trigger price
-                    "reduceOnly": True,
-                    "workingType": "MARK_PRICE"
-                }
-            )
-            logger.info(f"🎯 Real Take Profit placed for {symbol} at ${tp_price:.4f}")
-        except Exception as e:
-            logger.error(f"❌ Failed to place Real TP for {symbol}: {e}")
-            
-        return results
+        logger.info(f"📍 Virtual SL/TP set for {symbol} | SL: ${sl_price:.4f} | TP: ${tp_price:.4f}")
+        return {"sl": None, "tp": None}
 
     def cancel_symbol_orders(self, symbol: str) -> None:
         """Cancel all open orders for a specific symbol (clean up SL/TP)"""
@@ -154,6 +117,8 @@ class LiveBinanceBroker(BaseBroker):
         return self._exchange.fetch_tickers()
 
     def fetch_ticker(self, symbol: str) -> dict:
+        # --- ANTI-BAN DELAY: 2s cooldown per ticker fetch ---
+        time.sleep(2)
         return self._exchange.fetch_ticker(symbol)
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list:
@@ -165,3 +130,13 @@ class LiveBinanceBroker(BaseBroker):
         except Exception as exc:
             logger.error(f"Failed to fetch trade history for {symbol}: {exc}")
             return []
+
+    def fetch_position(self, symbol: str) -> dict:
+        try:
+            positions = self._exchange.fetch_positions([symbol])
+            if positions:
+                return positions[0]
+            return None
+        except Exception as exc:
+            logger.error(f"Failed to fetch position for {symbol}: {exc}")
+            return None

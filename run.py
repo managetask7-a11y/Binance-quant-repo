@@ -87,12 +87,27 @@ def main():
             logger.info(f"Dashboard running at http://localhost:{args.port}")
 
     if not trading_mode and not args.dry_run:
-        logger.info("Waiting for configuration...")
+        logger.info("Waiting for configuration from dashboard...")
         import time
-        while not trader.user_id or not db.get_config(trader.user_id, "trading_mode", ""):
+        wait_count = 0
+        while True:
+            try:
+                if trader.user_id and db.get_config(trader.user_id, "trading_mode", ""):
+                    break
+            except Exception as e:
+                logger.warning(f"Database connection error: {e}. Retrying...")
+            
+            wait_count += 1
+            if wait_count % 15 == 0:  # Every 30 seconds (15 * 2s)
+                logger.info("Still waiting for trading mode configuration (Live/Dry Run) via dashboard...")
+                
             time.sleep(2)
-        trading_mode = db.get_config(trader.user_id, "trading_mode", "")
-        logger.info(f"Configuration received for user {trader.user_id}. Starting trader...")
+            
+        try:
+            trading_mode = db.get_config(trader.user_id, "trading_mode", "")
+            logger.info(f"Configuration received: {trading_mode}. Starting trader...")
+        except Exception:
+            pass
 
     trader.run()
 

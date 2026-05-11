@@ -13,7 +13,7 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
-INITIAL_BALANCE = 100.0
+INITIAL_BALANCE = 10
 LEVERAGE = 15
 RISK_PER_TRADE = 0.07
 ATR_MULT = 1.4
@@ -53,7 +53,7 @@ MULTI_WEIGHTS = {
     "wyckoff": 1.5,
     "cbg": 1.2,
     "bb_trend": 1.8,
-    "band_rider": 2.5,
+    "band_rider": 0.0,
     "liquidity_hunter": 3.0,
     "alpha_x": 0.0,
 }
@@ -72,7 +72,17 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 EXCLUDE_SYMBOLS = {
     "USDCUSDT", "TUSDUSDT", "USDPUSDT", "EURUSDT", "FDUSDUSDT",
     "DAIUSDT", "BUSDUSDT", "PAXGUSDT", "USDDUSDT",
+    "DOGEUSDT",  # Structural negative expectancy: 20% WR, -$75.77 in backtest
 }
+
+GOLD_COINS = [
+    "ADA/USDT:USDT", "AR/USDT:USDT", "BSB/USDT:USDT", "BZ/USDT:USDT", 
+    "ICP/USDT:USDT", "INJ/USDT:USDT", "LAB/USDT:USDT", "LINK/USDT:USDT", 
+    "M/USDT:USDT", "MSTR/USDT:USDT", "ORCA/USDT:USDT", "SKYAI/USDT:USDT", 
+    "SOL/USDT:USDT", "SWARMS/USDT:USDT", "TRX/USDT:USDT", "UB/USDT:USDT", 
+    "VIRTUAL/USDT:USDT", "WLD/USDT:USDT", "ZEN/USDT:USDT"
+]
+
 MIN_VOLUME_MA = 70000
 TOP_N_COINS = 20
 

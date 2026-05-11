@@ -170,6 +170,32 @@
     }
     window.manualResetDaily = manualResetDaily;
 
+    async function manualResetAll() {
+        if (!confirm("🚨 WARNING: This will PERMANENTLY WIPE all trade history and equity logs for this account. This cannot be undone.\n\nAre you sure you want to hard reset everything?")) return;
+        
+        const btn = $("hardResetBtn");
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "WIPING EVERYTHING...";
+        
+        try {
+            const res = await postJSON("/api/trading/reset_all", {});
+            if (res && res.success) {
+                alert("🔥 Total history wiped successfully. Starting with a fresh slate!");
+                $("configModalOverlay").classList.remove("active");
+                location.reload(); // Hard reload to clear all charts and tables
+            } else {
+                alert(res ? res.error : "Wipe failed");
+            }
+        } catch (e) {
+            alert("Connection error");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = originalText;
+        }
+    }
+    window.manualResetAll = manualResetAll;
+
     async function togglePause() {
         var btn = $("pauseResumeBtn");
         var isPaused = btn.textContent.includes("Resume");
@@ -307,6 +333,16 @@
                 $("cfgTopCoins").value = data.top_n_coins || "15";
                 $("cfgDailyProfitTarget").value = data.daily_profit_target || "0";
                 $("cfgDailyLossLimit").value = data.prop_daily_loss_pct || "25";
+
+                // Regime Settings
+                $("cfgRegimeMode").value = data.regime_mode || "auto";
+                $("cfgManualRegime").value = data.manual_regime || "sideways";
+                
+                if (data.regime_mode === "manual") {
+                    $("manualRegimeGroup").classList.remove("hidden");
+                } else {
+                    $("manualRegimeGroup").classList.add("hidden");
+                }
             }
         }
         function closeModal() { overlay.classList.remove("visible"); }
@@ -315,6 +351,15 @@
         closeBtn.addEventListener("click", closeModal);
         cancelBtn.addEventListener("click", closeModal);
         overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+
+        // Toggle manual regime group
+        $("cfgRegimeMode").addEventListener("change", function() {
+            if (this.value === "manual") {
+                $("manualRegimeGroup").classList.remove("hidden");
+            } else {
+                $("manualRegimeGroup").classList.add("hidden");
+            }
+        });
 
         var defaultBtn = $("useDefaultConfig");
         if (defaultBtn) {
@@ -350,7 +395,9 @@
                 daily_profit_target: $("cfgDailyProfitTarget").value,
                 prop_daily_loss_pct: $("cfgDailyLossLimit").value,
                 telegram_bot_token: $("cfgTgToken").value,
-                telegram_chat_id: $("cfgTgChat").value
+                telegram_chat_id: $("cfgTgChat").value,
+                regime_mode: $("cfgRegimeMode").value,
+                manual_regime: $("cfgManualRegime").value
             };
 
             saveBtn.disabled = true;
@@ -485,6 +532,13 @@
         var label = $("modeLabel");
         var dot = $("statusDot");
         var statusText = "Scanning " + data.scan_limit;
+        
+        // Update Personality display
+        if ($("currentPersonality")) {
+            const pers = data.personality || "N/A";
+            const reg = data.regime || "N/A";
+            $("currentPersonality").textContent = `${reg.toUpperCase()} (${pers})`;
+        }
 
         var pauseBtn = $("pauseResumeBtn");
         pauseBtn.style.display = "flex";
@@ -675,9 +729,94 @@
         ]);
     }
 
+    function setupTestTradeModal() {
+        var overlay = $("testTradeModalOverlay");
+        var openBtn = $("openTestTradeModal");
+        var closeBtn = $("closeTestTradeModal");
+        var cancelBtn = $("cancelTestTrade");
+        var submitBtn = $("submitTestTrade");
+        var error = $("testTradeError");
+        var select = $("testTradeSymbol");
+
+        async function openModal() {
+            error.classList.add("hidden");
+            overlay.classList.add("visible");
+
+            // Fetch Gold List symbols
+            select.innerHTML = '<option value="">Loading...</option>';
+            var data = await fetchJSON("/api/gold_list");
+            if (data && data.symbols) {
+                select.innerHTML = data.symbols.map(function (s) {
+                    // Show clean name: "ADA/USDT:USDT" -> "ADA/USDT"
+                    var label = s.replace(":USDT", "");
+                    return '<option value="' + s + '">' + label + '</option>';
+                }).join("");
+            } else {
+                select.innerHTML = '<option value="">Failed to load</option>';
+            }
+
+            // Reset direction to LONG
+            selectTestDirection("LONG");
+        }
+
+        function closeModal() { overlay.classList.remove("visible"); }
+
+        openBtn.addEventListener("click", openModal);
+        closeBtn.addEventListener("click", closeModal);
+        cancelBtn.addEventListener("click", closeModal);
+        overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+
+        submitBtn.addEventListener("click", async function () {
+            var symbol = select.value;
+            var direction = $("testTradeDirection").value;
+
+            if (!symbol) {
+                error.textContent = "Please select a symbol.";
+                error.classList.remove("hidden");
+                return;
+            }
+
+            error.classList.add("hidden");
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Opening...";
+
+            var res = await postJSON("/api/trades/test", {
+                symbol: symbol,
+                direction: direction,
+            });
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Open Position";
+
+            if (res && res.success) {
+                closeModal();
+                refresh();
+            } else {
+                error.textContent = res ? res.error : "Failed to open test trade.";
+                error.classList.remove("hidden");
+            }
+        });
+    }
+
+    function selectTestDirection(dir) {
+        var longBtn = $("testDirLong");
+        var shortBtn = $("testDirShort");
+        $("testTradeDirection").value = dir;
+
+        if (dir === "LONG") {
+            longBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-profit transition-all cursor-pointer bg-profit/10 text-profit";
+            shortBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-white/[0.12] transition-all cursor-pointer bg-white/[0.04] text-gray-400";
+        } else {
+            shortBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-loss transition-all cursor-pointer bg-loss/10 text-loss";
+            longBtn.className = "py-2.5 rounded-[10px] text-sm font-semibold border border-white/[0.12] transition-all cursor-pointer bg-white/[0.04] text-gray-400";
+        }
+    }
+    window.selectTestDirection = selectTestDirection;
+
     setupConfigModal();
     setupSettingsModal();
     setupTargetModal();
+    setupTestTradeModal();
     setupCalendarModal();
     startCountdown();
     refresh();

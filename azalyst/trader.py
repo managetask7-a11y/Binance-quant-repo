@@ -285,7 +285,9 @@ class LiveTrader:
                     "top_n_coins": "top_n_coins",
                     "prop_daily_loss_pct": "prop_daily_loss_pct",
                     "telegram_token": "telegram_bot_token",
-                    "telegram_chat_id": "telegram_chat_id"
+                    "telegram_chat_id": "telegram_chat_id",
+                    "regime_mode": "regime_mode",
+                    "manual_regime": "manual_regime"
                 }
                 for internal_key, db_key in key_map.items():
                     val = db.get_config(self.user_id, db_key, None)
@@ -421,67 +423,71 @@ class LiveTrader:
 
     def _detect_regime(self):
         try:
-            btc_df = self.fetch_ohlcv(REGIME_BTC_SYMBOL, f"{CANDLE_TF_MIN}m", 250)
-            if btc_df.empty or len(btc_df) < 200:
-                return
-            btc_df = compute_indicators(btc_df)
-            btc_htf = self.fetch_ohlcv(REGIME_BTC_SYMBOL, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
-            if not btc_htf.empty:
-                btc_htf["ema_50"] = btc_htf["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
-                btc_htf["ema_200"] = btc_htf["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
+            regime_mode = self.config.get("regime_mode", "auto")
             old_regime = self.current_regime
-            self.current_regime = detect_regime(btc_df, htf_df=btc_htf, symbol="__MARKET__")
+
+            if regime_mode == "manual":
+                manual_val = self.config.get("manual_regime", "sideways")
+                try:
+                    self.current_regime = MarketRegime(manual_val)
+                except ValueError:
+                    self.current_regime = MarketRegime.SIDEWAYS
+            else:
+                btc_df = self.fetch_ohlcv(REGIME_BTC_SYMBOL, f"{CANDLE_TF_MIN}m", 250)
+                if btc_df.empty or len(btc_df) < 200:
+                    return
+                btc_df = compute_indicators(btc_df)
+                btc_htf = self.fetch_ohlcv(REGIME_BTC_SYMBOL, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
+                if not btc_htf.empty:
+                    btc_htf["ema_50"] = btc_htf["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
+                    btc_htf["ema_200"] = btc_htf["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
+                self.current_regime = detect_regime(btc_df, htf_df=btc_htf, symbol="__MARKET__")
+
             self.active_personality = get_personality(self.current_regime)
             if old_regime != self.current_regime:
-                logger.info(f"REGIME SHIFT: {old_regime.value} -> {self.current_regime.value} | Personality: {self.active_personality.name}")
+                logger.info(f"REGIME SHIFT ({regime_mode}): {old_regime.value} -> {self.current_regime.value} | Personality: {self.active_personality.name}")
         except Exception as e:
             logger.error(f"Regime detection failed: {e}")
 
+    def refresh_regime_now(self):
+        """Immediately re-evaluate regime based on current config settings"""
+        self._refresh_config()
+        self._detect_regime()
+
     def _refresh_top_coins(self):
         self.last_symbol_refresh_time = time.time()
+        
+        # [SYNCED WITH BACKTEST] Use the Gold List
+        from azalyst.config import GOLD_COINS
         scan_limit = self.active_personality.scan_limit
         self.current_scan_limit = scan_limit
         
-        logger.info(f"Refreshing top {scan_limit} coins from Binance...")
+        logger.info(f"Using Gold List for top {scan_limit} coins...")
+        
+        # We still check if the markets exist, just to be safe
+        logger.info("Loading markets from Binance to verify Gold List symbols...")
+        try:
+            markets = self.broker.load_markets()
+            # --- RATE LIMIT COOLDOWN: 3s pause after heavy load_markets call ---
+            time.sleep(3)
+            verified_symbols = []
+            for s in GOLD_COINS:
+                if s in markets and markets[s].get("active", True):
+                    verified_symbols.append(s)
+            self.symbols = verified_symbols[:scan_limit]
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to verify symbols from Binance (IP Ban/Rate Limit?): {e}")
+            logger.info("Falling back to raw Gold List symbols.")
+            self.symbols = GOLD_COINS[:scan_limit]
 
-        logger.info("Loading markets from Binance...")
-        markets = self.broker.load_markets()
-
-        usdt_symbols = [
-            s for s, m in markets.items()
-            if (s.endswith("/USDT") or s.endswith("/USDT:USDT")) and m.get("active", True)
-        ]
-
-        filtered = []
-        for s in usdt_symbols:
-            base = s.split("/")[0]
-            full_name = s.replace("/USDT", "").replace(":", "")
-            if full_name not in EXCLUDE_SYMBOLS and base not in EXCLUDE_SYMBOLS:
-                filtered.append(s)
-
-        all_tickers = self.broker.fetch_tickers()
-
-        volume_ranked = []
-        for symbol in filtered:
-            if symbol in all_tickers:
-                ticker = all_tickers[symbol]
-                vol_usdt = ticker.get("quoteVolume", 0) or 0
-                if vol_usdt > MIN_VOLUME_MA:
-                    volume_ranked.append((symbol, vol_usdt))
-
-        volume_ranked.sort(key=lambda x: x[1], reverse=True)
-        self.symbols = [s for s, _ in volume_ranked[:scan_limit]]
-
-        logger.info(f"Selected top {len(self.symbols)} symbols:")
+        logger.info(f"Selected top {len(self.symbols)} Gold List symbols:")
         for s in self.symbols[:5]:
             logger.info(f"  - {s}")
         if len(self.symbols) > 5:
             logger.info(f"  ... and {len(self.symbols) - 5} more")
 
-        if self.broker.is_live:
-            logger.info("Setting leverage...")
-            for symbol in self.symbols:
-                self.broker.set_leverage(symbol, LEVERAGE)
+        # NOTE: set_leverage removed from startup to reduce API calls (~15 saved).
+        # Leverage is set dynamically per-trade at execution time in execute_trade().
 
         logger.info(f"Symbol refresh complete. Actively tracking {len(self.symbols)} symbols...")
 
@@ -508,12 +514,35 @@ class LiveTrader:
         )
 
     def fetch_ohlcv(self, symbol: str, tf: str = "15m", limit: int = 250) -> pd.DataFrame:
+        # --- SYSTEM-WIDE ANTI-BAN DELAY ---
+        import time
+        time.sleep(2)
         for attempt in range(3):
             try:
                 ohlcv = self.broker.fetch_ohlcv(symbol, tf, limit)
                 df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
                 df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
                 df.set_index("timestamp", inplace=True)
+                
+                # --- CRITICAL FIX: Drop Incomplete Candles ---
+                # Live exchange data always includes the currently forming candle.
+                # Evaluating on a forming candle fails volume checks and distorts indicators.
+                now = pd.Timestamp.now(tz="UTC")
+                
+                # Determine timeframe duration in minutes
+                if "m" in tf:
+                    tf_minutes = int(tf.replace("m", ""))
+                elif "h" in tf:
+                    tf_minutes = int(tf.replace("h", "")) * 60
+                elif "d" in tf:
+                    tf_minutes = int(tf.replace("d", "")) * 1440
+                else:
+                    tf_minutes = 15 # fallback
+                    
+                # If the candle's close time is in the future, it is incomplete. Drop it.
+                if not df.empty and df.index[-1] + pd.Timedelta(minutes=tf_minutes) > now:
+                    df = df.iloc[:-1]
+                    
                 return df
             except Exception as e:
                 logger.warn(f"Failed to fetch {symbol} (attempt {attempt + 1}): {e}")
@@ -554,30 +583,40 @@ class LiveTrader:
                 )
             return
 
-        effective_cap = min(self._apply_order_cap(), self.active_personality.max_open_trades)
-        if len(self.open_trades) >= effective_cap:
-            logger.info(f"Order cap reached ({len(self.open_trades)}/{effective_cap}). Skipping scan.")
+        p = self.active_personality
+        max_allowed = max(1, p.max_open_trades) # Ensure at least 1
+        
+        if len(self.open_trades) >= max_allowed:
+            logger.info(f"Order cap reached ({len(self.open_trades)}/{max_allowed}). Skipping scan.")
             return
 
-        p = self.active_personality
-        logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{p.max_open_trades} open)")
+        logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{max_allowed} open)")
+
+        scan_checked = 0
+        scan_signals = 0
+        scan_skipped_data = 0
+        scan_no_signal = 0
 
         for symbol in self.symbols:
             if symbol in self.open_trades:
                 continue
-
-            # --- Correlation & Exposure Guard Pre-Check ---
-            open_list = list(self.open_trades.values())
-            longs = [t for t in open_list if t["direction"] == BUY]
-            shorts = [t for t in open_list if t["direction"] == SELL]
             
-            df = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 250)
-            if df.empty or len(df) < 200:
+            try:
+                df = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 250)
+                if df.empty or len(df) < 200:
+                    scan_skipped_data += 1
+                    continue
+            except Exception as e:
+                logger.error(f"Error fetching data for {symbol} (Rate Limited?): {e}")
+                scan_skipped_data += 1
                 continue
 
             df = compute_indicators(df)
             if df["atr_14"].iloc[-1] == 0 or np.isnan(df["atr_14"].iloc[-1]):
+                scan_skipped_data += 1
                 continue
+
+            scan_checked += 1
 
             htf_df = self.fetch_ohlcv(symbol, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
             if not htf_df.empty:
@@ -586,7 +625,11 @@ class LiveTrader:
 
             sig = multi_strategy_scan(df, htf_df=htf_df, personality=self.active_personality)
             if sig is None:
+                scan_no_signal += 1
                 continue
+
+            scan_signals += 1
+            logger.info(f"   [SIGNAL] {symbol} {'LONG' if sig['direction'] == BUY else 'SHORT'} | Strategies: {sig.get('strategies', [])}")
 
             # --- Post-Signal Exposure Enforcement ---
             direction = sig["direction"]
@@ -608,6 +651,8 @@ class LiveTrader:
 
             self.execute_trade(symbol, df, sig)
             time.sleep(0.5)
+
+        logger.info(f"   Scan complete: {scan_checked} checked, {scan_signals} signals, {scan_no_signal} no signal, {scan_skipped_data} data issues")
 
     def execute_trade(self, symbol: str, df: pd.DataFrame, sig: dict):
         last = df.iloc[-1]
@@ -678,7 +723,7 @@ class LiveTrader:
             "signal": sig["signal"],
             "strategies": ", ".join(sig.get("strategies", [])),
             "atr": atr,
-            "is_alpha": is_alpha,
+            "is_alpha": "alpha_x" in sig.get("strategies", []),
             "extended": False,
         }
 
@@ -928,13 +973,46 @@ class LiveTrader:
         trade["pnl_usd"] = pnl_usd
         trade["reason"] = reason
 
-        if self.broker.is_live:
-            try:
-                self.broker.cancel_symbol_orders(symbol)
-                side = "sell" if direction == BUY else "buy"
-                self.broker.place_market_order(symbol, side, qty)
-            except Exception as e:
-                logger.error(f"Failed to close {symbol}: {e}")
+        # --- SKIP BINANCE ONLY for paper-only trades ---
+        is_paper_trade = trade.get("signal", "") == "PAPER_TRADE"
+
+        if self.broker.is_live and not is_paper_trade:
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.broker.cancel_symbol_orders(symbol)
+                    side = "sell" if direction == BUY else "buy"
+                    
+                    # 1. Place the close order
+                    self.broker.place_market_order(symbol, side, qty)
+                    
+                    # 2. VERIFY position is actually 0
+                    time.sleep(1) # Wait for Binance to process
+                    pos = self.broker.fetch_position(symbol)
+                    actual_qty = abs(float(pos.get("contracts", 0) or pos.get("size", 0))) if pos else 0
+                    
+                    if actual_qty < 0.000001: # Essentially zero
+                        logger.info(f"✅ Successfully closed {symbol} on exchange (Verified 0 size).")
+                        break
+                    else:
+                        logger.warning(f"⚠️ {symbol} position still open on Binance ({actual_qty} remaining). Retrying...")
+                        qty = actual_qty # Update qty to close the remaining bits
+                        
+                except Exception as e:
+                    logger.error(f"⚠️ Attempt {attempt+1}/{max_retries} failed to close {symbol}: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                    else:
+                        logger.error(f"❌ CRITICAL: Failed to close {symbol} after {max_retries} attempts. Manual intervention required!")
+                        send_alerts(
+                            "🚨 <b>CRITICAL: CLOSE FAILED</b>",
+                            f"<b>{symbol}</b> could not be closed after {max_retries} retries!\n"
+                            "Manual intervention on Binance is required immediately.",
+                            telegram_token=self.config.get("telegram_token"),
+                            telegram_chat_id=self.config.get("telegram_chat_id")
+                        )
+        elif is_paper_trade:
+            logger.info(f"🧪 Paper trade {symbol} closed locally (no Binance interaction).")
 
         emoji = "✅" if pnl_usd >= 0 else "❌"
         logger.trade(f"{emoji} CLOSED: {symbol} | PnL: {pnl_pct:+.2f}% (${pnl_usd:+.2f}) | Reason: {reason}")
@@ -962,6 +1040,37 @@ class LiveTrader:
         self.daily_start_balance = self.balance
         self.daily_target_reached = False
         logger.info(f"Manual Daily Reset performed. New starting balance: ${self.balance:.2f}")
+
+    def manual_reset_all_history(self):
+        """Wipes all trade history and equity logs for a total clean start"""
+        if not self.user_id:
+            return
+            
+        from azalyst import db
+        mode = "live" if self.broker.is_live else "dry_run"
+        
+        # 1. Clear trades from DB
+        db.get_client().table("trades").delete().eq("user_id", self.user_id).eq("mode", mode).execute()
+        
+        # 2. Clear equity logs from DB
+        db.get_client().table("equity_log").delete().eq("user_id", self.user_id).eq("mode", mode).execute()
+        
+        # 3. Clear local state
+        self.closed_trades.clear()
+        self.equity_curve.clear()
+        self.daily_pnl = 0.0
+        
+        # 4. Sync balance to reset starting point
+        if self.broker.is_live:
+            self._sync_live_balance()
+            self.initial_balance = self.balance
+            self.daily_start_balance = self.balance
+        else:
+            self.initial_balance = 100.0 # Reset to default for dry run
+            self.balance = 100.0
+            self.daily_start_balance = 100.0
+            
+        logger.info(f"🔥 TOTAL HISTORY RESET for user {self.user_id} ({mode} mode). Starting fresh.")
 
     def print_status(self):
         logger.info(f"Balance: ${self.balance:.2f} | Open: {len(self.open_trades)} | "
@@ -1027,20 +1136,20 @@ class LiveTrader:
                     self.print_status()
 
                     logger.info(f"Next scan in {SCAN_INTERVAL_MIN} minutes...")
-                    loops = (SCAN_INTERVAL_MIN * 60) // 2
+                    loops = (SCAN_INTERVAL_MIN * 60)
                     for i in range(loops):
                         if not self.running:
                             break
                         try:
-                            # Sync balance every 1 minute (30 * 2s)
-                            if i % 30 == 0:
+                            # Sync balance every 1 minute
+                            if i % 60 == 0:
                                 self._sync_live_balance()
                             
-                            # Manage prices every 2s
+                            # Manage prices every 1s
                             self.manage_open_trades(main_scan=False)
                         except Exception as e:
                             logger.error(f"Error managing trades: {e}")
-                        time.sleep(2)
+                        time.sleep(1)
 
                 except Exception as e:
                     logger.error(f"Scan error: {e}\n{traceback.format_exc()}")

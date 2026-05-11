@@ -8,3 +8,4 @@ venv/
 baktest_data/
 result.txt
 *.csv
+scratch/

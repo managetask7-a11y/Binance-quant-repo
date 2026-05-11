@@ -12,7 +12,7 @@ from azalyst.config import (
 )
 from azalyst.indicators import compute_indicators
 from azalyst.consensus import multi_strategy_scan
-from azalyst.regime import detect as detect_regime, MarketRegime
+from azalyst.regime import detect as detect_regime, MarketRegime, reset_regime_state
 from azalyst.personalities import get_personality, DEFAULT_PERSONALITY, Personality
 
 
@@ -36,6 +36,14 @@ class BacktestEngine:
         self.current_regime = MarketRegime.SIDEWAYS
         self.active_personality: Personality = DEFAULT_PERSONALITY
         self.regime_log: list = []
+
+        self.cooldown: dict = {}
+        self.trading_halted = False
+        self._COOLDOWN_BARS = 16
+        self._DD_HALT_PCT = 0.20
+        self._DD_RESUME_PCT = 0.12
+
+        reset_regime_state()
 
     def _detect_regime_at_bar(self, all_data: dict, htf_data: dict, current_time):
         if not self.use_regime:
@@ -84,6 +92,24 @@ class BacktestEngine:
                 "personality": self.active_personality.name,
             })
 
+    def _check_drawdown_halt(self, current_time):
+        if self.peak_balance <= 0:
+            return
+            
+        # If currently halted, wait for timeout
+        if hasattr(self, 'halt_until') and self.halt_until is not None:
+            if current_time >= self.halt_until:
+                self.trading_halted = False
+                self.halt_until = None
+                # Reset peak balance so we don't immediately halt again
+                self.peak_balance = self.balance
+            return
+
+        current_dd = (self.peak_balance - self.balance) / self.peak_balance
+        if not self.trading_halted and current_dd >= self._DD_HALT_PCT:
+            self.trading_halted = True
+            self.halt_until = current_time + pd.Timedelta(days=3) # Halt for 3 days
+
     def _open_trade(self, symbol: str, bar: pd.Series, sig: dict, bar_time):
         direction = sig["direction"]
         atr = sig["atr"]
@@ -95,22 +121,19 @@ class BacktestEngine:
 
         atr_val = bar.get("atr_14", atr)
         raw_sl_dist = atr_val * p.atr_mult
-        
-        # Enforce minimum and maximum SL distances (prevent tiny stops getting wicked out)
+
         min_sl_dist = fill * p.sl_min_pct
         max_sl_dist = fill * p.sl_max_pct
         sl_dist = max(min_sl_dist, min(raw_sl_dist, max_sl_dist))
 
         effective_risk = self.risk_per_trade * p.risk_multiplier
         risk_usd = self.balance * effective_risk
-        
-        # Calculate QTY based on SL distance so we lose exactly risk_usd
+
         ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
-        
-        # But we cannot buy more than our max leverage allows
+
         max_qty = (self.balance * p.leverage) / fill
         qty = min(ideal_qty, max_qty)
-        
+
         tp_dist = sl_dist * p.tp_rr_ratio
 
         if direction == BUY:
@@ -133,6 +156,7 @@ class BacktestEngine:
             "entry_time": bar_time,
             "scan_count": 0,
             "atr": atr,
+            "atr_val": atr_val,
             "strategies": sig["strategies"],
             "extended": False,
             "is_alpha": False,
@@ -140,6 +164,8 @@ class BacktestEngine:
             "personality": self.active_personality.name,
             "max_price": fill,
             "min_price": fill,
+            "be_moved": False,
+            "tp1_locked": False,
         }
 
     def _manage_trade(self, symbol: str, bar: pd.Series, bar_time):
@@ -163,6 +189,12 @@ class BacktestEngine:
         exit_price = 0.0
         reason = ""
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 1: STOP LOSS / TAKE PROFIT CHECKS
+        # TP1 is a HARD EXIT — take the money! In crypto, price often
+        # retraces after big moves. The lock-and-run approach gave back
+        # $100+ in profit. Hard TP1 captured $105 from just 2 trades.
+        # ═══════════════════════════════════════════════════════════════
         if not closed:
             if direction == BUY:
                 if low <= sl:
@@ -179,20 +211,55 @@ class BacktestEngine:
                 elif tp1 and low <= tp1:
                     exit_price, reason, closed = tp1, "TAKE_PROFIT_1", True
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 2: BREAKEVEN PROTECTION (at 1.5 ATR profit)
+        # Move SL to entry + fees + 0.2% lock.
+        # Small lock so it doesn't interfere with trailing stop.
+        # ═══════════════════════════════════════════════════════════════
+        if not closed and not trade.get("be_moved", False) and self.active_personality.trailing_enabled:
+            atr_val = trade.get("atr_val", trade["atr"])
+            if atr_val > 0:
+                if direction == BUY:
+                    pnl_atr = (close - entry) / atr_val
+                else:
+                    pnl_atr = (entry - close) / atr_val
+                if pnl_atr >= 1.5:
+                    fee_buffer = entry * TAKER_FEE * 2
+                    profit_lock = entry * 0.002  # 0.2% — small lock, won't interfere with trail
+                    if direction == BUY:
+                        new_sl = entry + fee_buffer + profit_lock
+                        if new_sl > trade["sl_price"]:
+                            trade["sl_price"] = new_sl
+                            trade["be_moved"] = True
+                    else:
+                        new_sl = entry - fee_buffer - profit_lock
+                        if new_sl < trade["sl_price"]:
+                            trade["sl_price"] = new_sl
+                            trade["be_moved"] = True
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 3: TRAILING STOP (percentage-based from peak)
+        # Trails from the highest price reached. Uses personality
+        # settings for trigger % and trail distance %.
+        # ═══════════════════════════════════════════════════════════════
         p = self.active_personality
         if not closed and p.trailing_enabled:
             pnl_move = (close - entry) / entry if direction == BUY else (entry - close) / entry
             if pnl_move >= p.trail_trigger_pct:
                 if direction == BUY:
                     new_sl = trade["max_price"] * (1 - p.trail_distance_pct)
+                    new_sl = max(new_sl, entry)  # never below entry
                     if new_sl > trade["sl_price"]:
                         trade["sl_price"] = new_sl
                 else:
                     new_sl = trade["min_price"] * (1 + p.trail_distance_pct)
+                    new_sl = min(new_sl, entry)  # never above entry
                     if new_sl < trade["sl_price"]:
                         trade["sl_price"] = new_sl
 
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 4: MAX HOLD TIME
+        # ═══════════════════════════════════════════════════════════════
         if not closed and trade["scan_count"] >= self.max_hold:
             exit_price, reason, closed = close, "MAX_HOLD_TIME", True
 
@@ -226,8 +293,18 @@ class BacktestEngine:
         trade["reason"] = reason
         self.closed_trades.append(trade)
 
-    def run(self, all_data: dict, htf_data: dict, start_date, end_date, scan_every_n: int = 2):
+        self.cooldown[symbol] = self._COOLDOWN_BARS
+
+    def run(self, all_data: dict, htf_data: dict, start_date, end_date, 
+            scan_every_n: int = 2, dynamic_top: bool = False, top_n: int = 20,
+            trade_symbols: list[str] | None = None):
         t0 = time.time()
+        self.active_symbols = list(all_data.keys())
+        if not dynamic_top:
+            if trade_symbols:
+                self.active_symbols = [s for s in self.active_symbols if s in trade_symbols]
+            else:
+                self.active_symbols = self.active_symbols[:top_n]
 
         all_times = set()
         for df in all_data.values():
@@ -249,6 +326,11 @@ class BacktestEngine:
                 sys.stdout.write(f"\r  Simulation: {pct:.1f}% | {bar_counter}/{total} bars | ETA: {int(eta)}s   ")
                 sys.stdout.flush()
 
+            for sym in list(self.cooldown.keys()):
+                self.cooldown[sym] -= 1
+                if self.cooldown[sym] <= 0:
+                    del self.cooldown[sym]
+
             for sym in list(self.open_trades.keys()):
                 if sym in all_data:
                     try:
@@ -260,8 +342,31 @@ class BacktestEngine:
             if bar_counter % scan_every_n != 0:
                 continue
 
-            if bar_counter % (scan_every_n * 8) == 0:
+            if bar_counter % (scan_every_n * 4) == 0:
                 self._detect_regime_at_bar(all_data, htf_data, t)
+                
+                # Dynamic Symbol Re-ranking
+                if dynamic_top:
+                    symbol_volumes = []
+                    for sym, df in all_data.items():
+                        try:
+                            idx = df.index.get_loc(t)
+                            if isinstance(idx, slice):
+                                idx = idx.stop - 1
+                            # Look back 96 bars (24 hours) for volume
+                            start_idx = max(0, idx - 96)
+                            vol = df.iloc[start_idx:idx+1]["volume"].sum()
+                            symbol_volumes.append((sym, vol))
+                        except KeyError:
+                            continue
+                    
+                    symbol_volumes.sort(key=lambda x: x[1], reverse=True)
+                    self.active_symbols = [s for s, _ in symbol_volumes[:top_n]]
+
+            self._check_drawdown_halt(t)
+            if self.trading_halted:
+                self.equity_curve.append({"time": t, "balance": self.balance, "open": len(self.open_trades)})
+                continue
 
             p = self.active_personality
             if len(self.open_trades) >= min(self.max_open, p.max_open_trades):
@@ -271,8 +376,11 @@ class BacktestEngine:
             if used_margin >= self.balance * 0.95:
                 continue
 
-            for sym, df in all_data.items():
+            for sym in self.active_symbols:
+                df = all_data[sym]
                 if sym in self.open_trades:
+                    continue
+                if sym in self.cooldown:
                     continue
                 if len(self.open_trades) >= min(self.max_open, p.max_open_trades):
                     break
@@ -290,6 +398,12 @@ class BacktestEngine:
                 ind = df.iloc[:idx + 1]
 
                 if ind["atr_14"].iloc[-1] == 0 or np.isnan(ind["atr_14"].iloc[-1]):
+                    continue
+
+                last = ind.iloc[-1]
+                atr_val = last["atr_14"]
+                price = last["close"]
+                if price > 0 and atr_val / price > 0.05:
                     continue
 
                 open_list = list(self.open_trades.values())
