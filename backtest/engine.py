@@ -376,7 +376,9 @@ class BacktestEngine:
             if used_margin >= self.balance * 0.95:
                 continue
 
-            for sym in self.active_symbols:
+            # Sync scan limit with active personality (Matches live trader.py)
+            current_scan_symbols = self.active_symbols[:p.scan_limit]
+            for sym in current_scan_symbols:
                 df = all_data[sym]
                 if sym in self.open_trades:
                     continue
