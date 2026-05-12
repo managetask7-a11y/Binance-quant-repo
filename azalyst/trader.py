@@ -590,14 +590,15 @@ class LiveTrader:
             logger.info(f"Order cap reached ({len(self.open_trades)}/{max_allowed}). Skipping scan.")
             return
 
-        logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(self.symbols)} symbols... ({len(self.open_trades)}/{max_allowed} open)")
+        symbols_to_scan = self.symbols[:p.scan_limit]
+        logger.info(f"[{self.current_regime.value}|{p.name}] Scanning {len(symbols_to_scan)} symbols... ({len(self.open_trades)}/{max_allowed} open)")
 
         scan_checked = 0
         scan_signals = 0
         scan_skipped_data = 0
         scan_no_signal = 0
 
-        for symbol in self.symbols:
+        for symbol in symbols_to_scan:
             if symbol in self.open_trades:
                 continue
             
