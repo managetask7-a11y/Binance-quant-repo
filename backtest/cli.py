@@ -69,20 +69,21 @@ def main():
     
     if args.gold_list:
         print("  [GOLD LIST MODE] Using hardcoded list of high-quality coins.")
-        symbols = GOLD_COINS
+        trading_symbols = GOLD_COINS
     else:
         # If top_coins is 0, fetch ALL symbols. Otherwise, if dynamic_top is enabled, fetch 100.
         if args.top_coins == 0:
             fetch_count = 0
         else:
             fetch_count = 100 if args.dynamic_top else args.top_coins
-        symbols = provider.get_top_symbols(n=fetch_count)
+        trading_symbols = provider.get_top_symbols(n=fetch_count)
     
-    # ALWAYS ensure BTC is in symbols for regime detection, even if not in Gold List
-    if REGIME_BTC_SYMBOL not in symbols:
-        symbols = list(symbols) + [REGIME_BTC_SYMBOL]
+    # data_symbols includes BTC for regime detection
+    data_symbols = list(trading_symbols)
+    if REGIME_BTC_SYMBOL not in data_symbols:
+        data_symbols.append(REGIME_BTC_SYMBOL)
         
-    all_data, htf_data = provider.prepare_backtest_data(symbols, start_date, end_date)
+    all_data, htf_data = provider.prepare_backtest_data(data_symbols, start_date, end_date)
 
     config = _build_config()
 
@@ -95,7 +96,7 @@ def main():
                    scan_every_n=args.scan_bars, 
                    dynamic_top=args.dynamic_top,
                    top_n=args.top_coins,
-                   trade_symbols=symbols) # 'symbols' is the original list before BTC was added
+                   trade_symbols=trading_symbols) 
         report = generate_report(engine)
         print_report(report, label)
         save_trades_csv(report, label)
@@ -107,7 +108,8 @@ def main():
         engine_regime.run(all_data, htf_data, start_date, end_date, 
                           scan_every_n=args.scan_bars, 
                           dynamic_top=args.dynamic_top,
-                          top_n=args.top_coins)
+                          top_n=args.top_coins,
+                          trade_symbols=trading_symbols)
         report_regime = generate_report(engine_regime)
         results["REGIME-ADAPTIVE"] = report_regime
         print_report(report_regime, "REGIME-ADAPTIVE")
@@ -118,7 +120,8 @@ def main():
         engine_static.run(all_data, htf_data, start_date, end_date, 
                           scan_every_n=args.scan_bars, 
                           dynamic_top=args.dynamic_top,
-                          top_n=args.top_coins)
+                          top_n=args.top_coins,
+                          trade_symbols=trading_symbols)
         report_static = generate_report(engine_static)
         results["STATIC"] = report_static
         print_report(report_static, "STATIC (NO REGIME)")
