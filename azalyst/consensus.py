@@ -5,6 +5,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from azalyst.logger import logger
 from azalyst.config import BUY, SELL, HOLD, MIN_AGREEMENT, WEIGHTED_THRESHOLD, MULTI_WEIGHTS
 from azalyst.strategies import MULTI_STRATEGIES
 from azalyst.strategies.htf_filter import get_htf_trend
@@ -36,6 +37,7 @@ def _check_entry_quality(df: pd.DataFrame, direction: int) -> bool:
 
 def multi_strategy_scan(
     df: pd.DataFrame,
+    symbol: str = "UNKNOWN",
     htf_df: Optional[pd.DataFrame] = None,
     personality: Optional[Personality] = None,
 ) -> Optional[dict]:
@@ -90,6 +92,12 @@ def multi_strategy_scan(
     rsi = last.get("rsi_14", 50)
     if np.isnan(atr_val) or atr_val <= 0:
         return None
+
+    # DIAGNOSTIC LOGGING: Show agreement even if it doesn't trigger
+    if buy_count > 0:
+        logger.info(f"   [SCAN] {symbol:<12} | LONG Agreement: {buy_count}/{p.min_agreement} | Weight: {buy_weight:.1f}/{p.weighted_threshold} | Strategies: {buy_strategies}")
+    if sell_count > 0:
+        logger.info(f"   [SCAN] {symbol:<12} | SHORT Agreement: {sell_count}/{p.min_agreement} | Weight: {sell_weight:.1f}/{p.weighted_threshold} | Strategies: {sell_strategies}")
 
     if buy_count >= p.min_agreement and buy_weight >= p.weighted_threshold and buy_count > sell_count:
         if htf_trend == -1:
