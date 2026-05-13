@@ -40,6 +40,7 @@ def multi_strategy_scan(
     symbol: str = "UNKNOWN",
     htf_df: Optional[pd.DataFrame] = None,
     personality: Optional[Personality] = None,
+    silent: bool = True,
 ) -> Optional[dict]:
     if len(df) < 200:
         return None
@@ -94,20 +95,21 @@ def multi_strategy_scan(
         return None
 
     # DIAGNOSTIC LOGGING: Full Scorecard with Strategy Breakdown
-    buy_str_list = ", ".join([f"{n}:{p.weights.get(n,0.0)}" for n in buy_strategies])
-    sell_str_list = ", ".join([f"{n}:{p.weights.get(n,0.0)}" for n in sell_strategies])
+    if not silent:
+        buy_str_list = ", ".join([f"{n}:{p.weights.get(n,0.0)}" for n in buy_strategies])
+        sell_str_list = ", ".join([f"{n}:{p.weights.get(n,0.0)}" for n in sell_strategies])
 
-    if buy_count >= p.min_agreement or sell_count >= p.min_agreement:
-        # Highlight when it's close or triggering
-        logger.info(f"   [SCAN] {symbol:<12} | LONG: {buy_count}/{p.min_agreement} (w={buy_weight:.1f}/{p.weighted_threshold}) [{buy_str_list}] | SHORT: {sell_count}/{p.min_agreement} (w={sell_weight:.1f}/{p.weighted_threshold}) [{sell_str_list}]")
-    else:
-        # Standard heartbeat for every scan
-        l_info = f"L: {buy_count} (w={buy_weight:.1f})"
-        if buy_count > 0: l_info += f" [{buy_str_list}]"
-        s_info = f"S: {sell_count} (w={sell_weight:.1f})"
-        if sell_count > 0: s_info += f" [{sell_str_list}]"
-        
-        logger.info(f"   [CHECK] {symbol:<12} | {l_info} | {s_info}")
+        if buy_count >= p.min_agreement or sell_count >= p.min_agreement:
+            # Highlight when it's close or triggering
+            logger.info(f"   [SCAN] {symbol:<12} | LONG: {buy_count}/{p.min_agreement} (w={buy_weight:.1f}/{p.weighted_threshold}) [{buy_str_list}] | SHORT: {sell_count}/{p.min_agreement} (w={sell_weight:.1f}/{p.weighted_threshold}) [{sell_str_list}]")
+        else:
+            # Standard heartbeat for every scan
+            l_info = f"L: {buy_count} (w={buy_weight:.1f})"
+            if buy_count > 0: l_info += f" [{buy_str_list}]"
+            s_info = f"S: {sell_count} (w={sell_weight:.1f})"
+            if sell_count > 0: s_info += f" [{sell_str_list}]"
+            
+            logger.info(f"   [CHECK] {symbol:<12} | {l_info} | {s_info}")
 
     if buy_count >= p.min_agreement and buy_weight >= p.weighted_threshold and buy_count > sell_count:
         if htf_trend == -1:

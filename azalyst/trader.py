@@ -626,7 +626,7 @@ class LiveTrader:
                 htf_df["ema_50"] = htf_df["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
                 htf_df["ema_200"] = htf_df["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
 
-            sig = multi_strategy_scan(df, symbol=symbol, htf_df=htf_df, personality=self.active_personality)
+            sig = multi_strategy_scan(df, symbol=symbol, htf_df=htf_df, personality=self.active_personality, silent=False)
             if sig is None:
                 scan_no_signal += 1
                 continue
