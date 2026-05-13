@@ -57,6 +57,7 @@ class LiveTrader:
         self._live_prices: Dict[str, float] = {}
         self.current_regime: MarketRegime = MarketRegime.SIDEWAYS
         self.active_personality: Personality = DEFAULT_PERSONALITY
+        self.force_scan = False
 
         self.config = {
             "leverage": LEVERAGE,
@@ -268,6 +269,7 @@ class LiveTrader:
         self._refresh_top_coins()
             
         logger.info(f"Trader reconfigured to {'LIVE' if broker.is_live else 'DRY RUN'} mode for user {self.user_id}")
+        self.force_scan = True
 
     def _refresh_config(self):
         """Fetch user-specific config from DB with retries for network stability"""
@@ -1139,7 +1141,8 @@ class LiveTrader:
                     logger.info(f"Next scan in {SCAN_INTERVAL_MIN} minutes...")
                     loops = (SCAN_INTERVAL_MIN * 60)
                     for i in range(loops):
-                        if not self.running:
+                        if not self.running or self.force_scan:
+                            self.force_scan = False
                             break
                         try:
                             # Sync balance every 1 minute
