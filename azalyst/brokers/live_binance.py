@@ -94,6 +94,16 @@ class LiveBinanceBroker(BaseBroker):
         except Exception as exc:
             logger.warning(f"Could not set leverage for {symbol}: {exc}")
 
+    def set_margin_mode(self, symbol: str, margin_mode: str) -> None:
+        try:
+            # margin_mode should be 'ISOLATED' or 'CROSS'
+            self._exchange.set_margin_mode(margin_mode, symbol)
+            logger.info(f"🛡️ Set margin mode for {symbol} to {margin_mode}")
+        except Exception as exc:
+            # Binance often errors if the mode is already set, so we treat it as a warning
+            if "No need to change" not in str(exc):
+                logger.warning(f"Could not set margin mode for {symbol}: {exc}")
+
     def place_sl_tp(self, symbol: str, side: str, qty: float, sl_price: float, tp_price: float) -> dict:
         """
         Virtual Stop Loss and Take Profit tracking.

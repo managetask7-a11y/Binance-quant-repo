@@ -408,8 +408,8 @@ def api_test_trade():
         # --- PLACE REAL ORDER ON BINANCE ---
         if _trader_instance.broker.is_live:
             side = "buy" if direction == BUY else "sell"
-            # 1. Set leverage (20x)
-            _trader_instance.broker.set_leverage(symbol, 20)
+            # Force ISOLATED mode for safety, but don't force leverage (let Binance handle it)
+            _trader_instance.broker.set_margin_mode(symbol, "ISOLATED")
             # 2. Place market order
             from azalyst.logger import logger
             logger.info(f"🧪 Placing test order: {side} {qty} {symbol} (~${notional_size})")
