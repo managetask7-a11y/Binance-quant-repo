@@ -435,7 +435,7 @@ class LiveTrader:
                 except ValueError:
                     self.current_regime = MarketRegime.SIDEWAYS
             else:
-                btc_df = self.fetch_ohlcv(REGIME_BTC_SYMBOL, f"{CANDLE_TF_MIN}m", 250)
+                btc_df = self.fetch_ohlcv(REGIME_BTC_SYMBOL, f"{CANDLE_TF_MIN}m", 500)
                 if btc_df.empty or len(btc_df) < 200:
                     return
                 btc_df = compute_indicators(btc_df)
@@ -605,7 +605,7 @@ class LiveTrader:
                 continue
             
             try:
-                df = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 250)
+                df = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 500)
                 if df.empty or len(df) < 200:
                     scan_skipped_data += 1
                     continue
