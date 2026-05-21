@@ -613,6 +613,11 @@ class LiveTrader:
                 logger.error(f"Error fetching data for {symbol} (Rate Limited?): {e}")
                 scan_skipped_data += 1
                 continue
+            import pandas as pd
+            now = pd.Timestamp.utcnow()
+            # If the last candle is still forming (its close time is in the future), drop it
+            if df.index[-1] + pd.Timedelta(minutes=CANDLE_TF_MIN) > now:
+                df = df.iloc[:-1]
 
             df = compute_indicators(df)
             if df["atr_14"].iloc[-1] == 0 or np.isnan(df["atr_14"].iloc[-1]):
@@ -623,6 +628,12 @@ class LiveTrader:
 
             htf_df = self.fetch_ohlcv(symbol, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
             if not htf_df.empty:
+                # Calculate HTF timeframe minutes
+                htf_tf_mins = int(HTF_TIMEFRAME.replace("h", "")) * 60 if "h" in HTF_TIMEFRAME else int(HTF_TIMEFRAME.replace("m", ""))
+                # Drop incomplete HTF candle
+                if htf_df.index[-1] + pd.Timedelta(minutes=htf_tf_mins) > now:
+                    htf_df = htf_df.iloc[:-1]
+                
                 htf_df["ema_50"] = htf_df["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
                 htf_df["ema_200"] = htf_df["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
 
