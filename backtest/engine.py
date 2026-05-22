@@ -415,9 +415,12 @@ class BacktestEngine:
                 htf_slice = None
                 if sym in htf_data:
                     try:
-                        htf_idx = htf_data[sym].index.get_indexer([t], method="pad")[0]
-                        if htf_idx >= 0 and htf_idx >= 200:
-                            htf_slice = htf_data[sym].iloc[:htf_idx + 1]
+                        import pandas as pd
+                        htf_tf_mins = 240 # 4 hours
+                        # Only use HTF candles that have fully closed at or before time t
+                        closed_htf = htf_data[sym][htf_data[sym].index + pd.Timedelta(minutes=htf_tf_mins) <= t]
+                        if not closed_htf.empty and len(closed_htf) >= 200:
+                            htf_slice = closed_htf
                     except Exception:
                         pass
 

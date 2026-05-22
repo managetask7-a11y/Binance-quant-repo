@@ -649,6 +649,11 @@ class LiveTrader:
             direction = sig["direction"]
             strategies = sig.get("strategies", [])
             
+            
+            open_list = list(self.open_trades.values())
+            longs = [tr for tr in open_list if tr.get("direction") == BUY]
+            shorts = [tr for tr in open_list if tr.get("direction") == SELL]
+            
             if direction == BUY and len(longs) >= p.max_same_direction:
                 logger.info(f"   [SKIP] {symbol} LONG cap reached ({p.max_same_direction})")
                 continue
