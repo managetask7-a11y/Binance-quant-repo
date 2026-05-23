@@ -637,17 +637,35 @@ class LiveTrader:
                 htf_df["ema_50"] = htf_df["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
                 htf_df["ema_200"] = htf_df["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
 
-            sig = multi_strategy_scan(df, symbol=symbol, htf_df=htf_df, personality=self.active_personality, silent=False)
+            scan_result = multi_strategy_scan(df, symbol=symbol, htf_df=htf_df, personality=self.active_personality, silent=False, return_full=True)
+            sig = scan_result["sig"]
+            scores = scan_result["scores"]
             
             try:
                 ts = datetime.now(timezone.utc).isoformat()
-                res_str = sig["direction"] if sig else "NONE"
+                dir_str = "BUY" if sig and sig.get("direction") == 1 else "SELL" if sig and sig.get("direction") == -1 else "NONE"
+                
+                import json
+                import math
+                details = df.iloc[-1].to_dict()
+                if not htf_df.empty:
+                    details["htf_close"] = htf_df.iloc[-1].get("close")
+                    details["htf_ema_50"] = htf_df.iloc[-1].get("ema_50")
+                    details["htf_ema_200"] = htf_df.iloc[-1].get("ema_200")
+                
+                clean_details = {k: (v if not isinstance(v, float) or not math.isnan(v) else None) for k, v in details.items()}
+                clean_details["scores"] = scores
+                
+                # Include the multi_strategy score if available
+                if sig and "signal" in sig:
+                    clean_details["consensus_signal"] = sig["signal"]
                 
                 # Save to Supabase table
                 from azalyst.db import insert_scan_log
-                insert_scan_log(self.user_id, ts, symbol, self.current_regime.name, self.active_personality.name, str(res_str))
-            except Exception:
-                pass
+                insert_scan_log(self.user_id, ts, symbol, self.current_regime.name, self.active_personality.name, dir_str, clean_details)
+                
+            except Exception as e:
+                logger.error(f"Error logging scan details: {e}")
             
             if sig is None:
                 scan_no_signal += 1

@@ -192,17 +192,20 @@ def fetch_binance_trades(user_id: str, limit: int = 100) -> list:
     )
     return result.data or []
 
-def insert_scan_log(user_id: str, timestamp: str, symbol: str, regime: str, personality: str, result_status: str) -> None:
+def insert_scan_log(user_id: str, timestamp: str, symbol: str, regime: str, personality: str, result_status: str, details: dict = None) -> None:
     client = get_client()
     def _op():
-        return client.table("scan_logs").insert({
+        data = {
             "user_id": user_id,
             "timestamp": timestamp,
             "symbol": symbol,
             "regime": regime,
             "personality": personality,
             "result": result_status,
-        }).execute()
+        }
+        if details:
+            data["details"] = details
+        return client.table("scan_logs").insert(data).execute()
     try:
         safe_execute(_op)
     except Exception:

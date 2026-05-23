@@ -41,9 +41,32 @@ def multi_strategy_scan(
     htf_df: Optional[pd.DataFrame] = None,
     personality: Optional[Personality] = None,
     silent: bool = True,
+    return_full: bool = False,
 ) -> Optional[dict]:
+    buy_count = 0
+    sell_count = 0
+    buy_weight = 0.0
+    sell_weight = 0.0
+    buy_strategies = []
+    sell_strategies = []
+
+    def _ret(val):
+        if not return_full:
+            return val
+        return {
+            "sig": val,
+            "scores": {
+                "buy_count": buy_count,
+                "sell_count": sell_count,
+                "buy_weight": buy_weight,
+                "sell_weight": sell_weight,
+                "buy_strategies": buy_strategies,
+                "sell_strategies": sell_strategies,
+            }
+        }
+
     if len(df) < 200:
-        return None
+        return _ret(None)
 
     p = personality or DEFAULT_PERSONALITY
 
@@ -52,13 +75,6 @@ def multi_strategy_scan(
         htf_trend = get_htf_trend(htf_df)
 
     last = df.iloc[-1]
-
-    buy_count = 0
-    sell_count = 0
-    buy_weight = 0.0
-    sell_weight = 0.0
-    buy_strategies = []
-    sell_strategies = []
 
     for name, func in MULTI_STRATEGIES.items():
         weight = p.weights.get(name, 0.0)
@@ -92,7 +108,7 @@ def multi_strategy_scan(
     atr_val = df["atr_14"].iloc[-1]
     rsi = last.get("rsi_14", 50)
     if np.isnan(atr_val) or atr_val <= 0:
-        return None
+        return _ret(None)
 
     # DIAGNOSTIC LOGGING: Full Scorecard with Strategy Breakdown
     if not silent:
@@ -113,37 +129,37 @@ def multi_strategy_scan(
 
     if buy_count >= p.min_agreement and buy_weight >= p.weighted_threshold and buy_count > sell_count:
         if htf_trend == -1:
-            return None
+            return _ret(None)
         if not np.isnan(rsi) and rsi > 80:
-            return None
+            return _ret(None)
         if not _check_entry_quality(df, BUY):
-            return None
+            return _ret(None)
 
-        return {
+        return _ret({
             "direction": BUY,
             "atr": float(atr_val),
             "signal": f"CONSENSUS({buy_count} agree, w={buy_weight:.1f})",
             "strategies": buy_strategies,
-        }
+        })
 
     if sell_count >= p.min_agreement and sell_weight >= p.weighted_threshold and sell_count > buy_count:
         if htf_trend == 1:
-            return None
+            return _ret(None)
         if not np.isnan(rsi) and rsi < 20:
-            return None
+            return _ret(None)
         if not _check_entry_quality(df, SELL):
-            return None
+            return _ret(None)
 
         if len(df) >= 6:
             recent_drop = df["close"].iloc[-6] - df["close"].iloc[-1]
             if recent_drop > 2.0 * atr_val:
-                return None
+                return _ret(None)
 
-        return {
+        return _ret({
             "direction": SELL,
             "atr": float(atr_val),
             "signal": f"CONSENSUS({sell_count} agree, w={sell_weight:.1f})",
             "strategies": sell_strategies,
-        }
+        })
 
-    return None
+    return _ret(None)
