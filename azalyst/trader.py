@@ -638,6 +638,17 @@ class LiveTrader:
                 htf_df["ema_200"] = htf_df["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
 
             sig = multi_strategy_scan(df, symbol=symbol, htf_df=htf_df, personality=self.active_personality, silent=False)
+            
+            try:
+                ts = datetime.now(timezone.utc).isoformat()
+                res_str = sig["direction"] if sig else "NONE"
+                
+                # Save to Supabase table
+                from azalyst.db import insert_scan_log
+                insert_scan_log(self.user_id, ts, symbol, self.current_regime.name, self.active_personality.name, str(res_str))
+            except Exception:
+                pass
+            
             if sig is None:
                 scan_no_signal += 1
                 continue
