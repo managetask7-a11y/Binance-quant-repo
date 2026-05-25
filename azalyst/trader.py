@@ -786,12 +786,40 @@ class LiveTrader:
                 # 1. Place Entry
                 self.broker.place_market_order(symbol, side, qty)
                 
-                # 2. Place Real TP/SL on Exchange (Commented out per user request)
-                # exit_side = "sell" if side == "buy" else "buy"
-                # self.broker.place_sl_tp(symbol, exit_side, qty, sl_price, tp_price)
+                # --- SYNC TRUE ENTRY FROM BINANCE ---
+                # Wait for Binance to process and register the fill
+                time.sleep(1.5)
+                pos = self.broker.fetch_position(symbol)
+                if pos:
+                    real_entry = pos.get("entryPrice")
+                    real_qty = pos.get("contracts")
+                    
+                    if real_entry:
+                        fill_price = float(real_entry)
+                        trade["entry_price"] = fill_price
+                        trade["max_price"] = fill_price
+                        trade["min_price"] = fill_price
+                        
+                        # Recalculate SL/TP offsets from the REAL entry price
+                        raw_sl_dist = atr * p.atr_mult
+                        min_sl_dist = fill_price * p.sl_min_pct
+                        max_sl_dist = fill_price * p.sl_max_pct
+                        sl_dist = max(min_sl_dist, min(raw_sl_dist, max_sl_dist))
+
+                        trade["sl_price"] = fill_price - sl_dist if direction == BUY else fill_price + sl_dist
+                        
+                        # Re-calculate TP based on updated SL distance
+                        tp_dist = sl_dist * p.tp_rr_ratio
+                        trade["tp_price"] = fill_price + tp_dist if direction == BUY else fill_price - tp_dist
+                        
+                        logger.info(f"🔄 Synced {symbol} real entry price from Binance: ${fill_price:.4f}")
+                        
+                    if real_qty:
+                        qty = float(real_qty)
+                        trade["qty"] = qty
 
                 logger.trade(f"OPENED: {symbol} {'LONG' if direction == BUY else 'SHORT'} @ ${fill_price:.4f} | "
-                             f"SL: ${sl_price:.4f} | TP: ${tp_price:.4f} | Qty: {qty:.4f}")
+                             f"SL: ${trade['sl_price']:.4f} | TP: ${trade['tp_price']:.4f} | Qty: {qty:.4f}")
             except Exception as e:
                 logger.error(f"Failed to execute {symbol}: {e}")
                 return
@@ -1031,20 +1059,33 @@ class LiveTrader:
                     self.broker.cancel_symbol_orders(symbol)
                     side = "sell" if direction == BUY else "buy"
                     
-                    # 1. Place the close order
-                    self.broker.place_market_order(symbol, side, qty)
-                    
-                    # 2. VERIFY position is actually 0
-                    time.sleep(1) # Wait for Binance to process
+                    # --- PRE-CHECK POSITION TO PREVENT OPPOSITE ORDERS ---
+                    # If the user manually closed the trade on Binance, position is 0.
+                    # We must not blindly send a market order, otherwise it opens a Short/Long.
                     pos = self.broker.fetch_position(symbol)
                     actual_qty = abs(float(pos.get("contracts", 0) or pos.get("size", 0))) if pos else 0
                     
-                    if actual_qty < 0.000001: # Essentially zero
+                    if actual_qty < 0.000001:
+                        logger.info(f"✅ {symbol} position is already 0 on Binance. Trade successfully closed.")
+                        break
+
+                    # Ensure we only close what is actually open
+                    close_qty = min(qty, actual_qty)
+                    
+                    # 1. Place the close order
+                    self.broker.place_market_order(symbol, side, close_qty)
+                    
+                    # 2. VERIFY position is actually 0
+                    time.sleep(1.5) # Wait for Binance to process
+                    pos = self.broker.fetch_position(symbol)
+                    new_qty = abs(float(pos.get("contracts", 0) or pos.get("size", 0))) if pos else 0
+                    
+                    if new_qty < 0.000001: # Essentially zero
                         logger.info(f"✅ Successfully closed {symbol} on exchange (Verified 0 size).")
                         break
                     else:
-                        logger.warning(f"⚠️ {symbol} position still open on Binance ({actual_qty} remaining). Retrying...")
-                        qty = actual_qty # Update qty to close the remaining bits
+                        logger.warning(f"⚠️ {symbol} position still open on Binance ({new_qty} remaining). Retrying...")
+                        qty = new_qty # Update qty to close the remaining bits
                         
                 except Exception as e:
                     logger.error(f"⚠️ Attempt {attempt+1}/{max_retries} failed to close {symbol}: {e}")
