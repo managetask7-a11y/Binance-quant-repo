@@ -13,7 +13,7 @@ from azalyst.brokers.base import BaseBroker
 from azalyst.brokers.demo import DemoBroker
 from azalyst.brokers.live_binance import LiveBinanceBroker
 from azalyst.config import (
-    INITIAL_BALANCE, LEVERAGE, RISK_PER_TRADE, ATR_MULT, TP_RR_RATIO,
+    INITIAL_BALANCE, LEVERAGE, RISK_PER_TRADE, MARGIN_PER_TRADE_PCT, ATR_MULT, TP_RR_RATIO,
     SL_MIN_PCT, SL_MAX_PCT, MAX_OPEN_TRADES, MAX_HOLD_SCANS,
     BREAKEVEN_AFTER_SCANS, SCAN_INTERVAL_MIN, CANDLE_TF_MIN,
     PROP_MAX_DRAWDOWN_PCT, PROP_DAILY_LOSS_PCT, SLIPPAGE_BPS,
@@ -60,8 +60,10 @@ class LiveTrader:
         self.force_scan = False
 
         self.config = {
+            "initial_balance": INITIAL_BALANCE,
             "leverage": LEVERAGE,
             "risk_per_trade": RISK_PER_TRADE,
+            "margin_per_trade_pct": MARGIN_PER_TRADE_PCT,
             "atr_mult": ATR_MULT,
             "tp_rr_ratio": TP_RR_RATIO,
             "top_n_coins": TOP_N_COINS,
@@ -725,10 +727,19 @@ class LiveTrader:
         sl_price = float(sl_price) if not np.isnan(sl_price) else fill_price * 0.95
         tp_price = float(tp_price) if not np.isnan(tp_price) else fill_price * 1.05
 
-        effective_risk = self.config["risk_per_trade"] * p.risk_multiplier
+        effective_risk = self.config.get("risk_per_trade", 0.07) * p.risk_multiplier
         risk_usd = self.balance * effective_risk
         
-        ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
+        margin_pct = self.config.get("margin_per_trade_pct", 0.0)
+        if margin_pct > 0:
+            # Fixed % Margin Sizing (compounding)
+            margin_usd = self.balance * margin_pct
+            notional = margin_usd * p.leverage
+            ideal_qty = notional / fill_price
+        else:
+            # Traditional Risk-Based Sizing
+            ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
+            
         max_qty = (self.balance * p.leverage) / fill_price
         qty = min(ideal_qty, max_qty)
 
