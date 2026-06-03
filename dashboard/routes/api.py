@@ -369,8 +369,14 @@ def api_test_trade():
         ticker = _trader_instance.broker.fetch_ticker(symbol)
         fill_price = ticker["last"]
 
-        # --- FIXED $6 NOTIONAL SIZE ---
-        notional_size = 6.0
+        # --- CALCULATE NOTIONAL SIZE ---
+        margin_pct = _trader_instance.config.get("margin_per_trade_pct", 0.0)
+        p = _trader_instance.active_personality
+        if margin_pct > 0:
+            margin_usd = _trader_instance.balance * margin_pct
+            notional_size = margin_usd * p.leverage
+        else:
+            notional_size = 6.0
 
         # Get market precision from Binance to avoid rounding errors
         try:

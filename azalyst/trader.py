@@ -361,11 +361,18 @@ class LiveTrader:
             direction = t["direction"]
             entry = t["entry_price"]
             live_price = self._live_prices.get(sym, entry)
+            taker_fee = 0.0005 # Binance default taker fee
+            notional = entry * t["qty"]
+            fee = (notional * taker_fee) + (live_price * t["qty"] * taker_fee)
+            
             if direction == BUY:
-                pnl_pct = (live_price - entry) / entry * 100
+                pnl_usd = (live_price - entry) * t["qty"] - fee
             else:
-                pnl_pct = (entry - live_price) / entry * 100
-            pnl_usd = self.balance * pnl_pct / 100 * RISK_PER_TRADE * LEVERAGE
+                pnl_usd = (entry - live_price) * t["qty"] - fee
+            
+            leverage = self.config.get("leverage", 15)
+            margin = notional / leverage
+            pnl_pct = (pnl_usd / margin) * 100 if margin > 0 else 0
             result.append({
                 "symbol": sym,
                 "direction": "LONG" if direction == BUY else "SHORT",
@@ -1045,12 +1052,19 @@ class LiveTrader:
         direction = trade["direction"]
         qty = trade["qty"]
 
-        if direction == BUY:
-            pnl_pct = (exit_price - entry) / entry * 100
-        else:
-            pnl_pct = (entry - exit_price) / entry * 100
+        taker_fee = 0.0005 # Binance default taker fee
+        notional_open = entry * qty
+        notional_close = exit_price * qty
+        fee = (notional_open * taker_fee) + (notional_close * taker_fee)
 
-        pnl_usd = self.balance * pnl_pct / 100 * RISK_PER_TRADE * LEVERAGE
+        if direction == BUY:
+            pnl_usd = (exit_price - entry) * qty - fee
+        else:
+            pnl_usd = (entry - exit_price) * qty - fee
+
+        leverage = self.config.get("leverage", 15)
+        margin = notional_open / leverage
+        pnl_pct = (pnl_usd / margin) * 100 if margin > 0 else 0
         self.balance += pnl_usd
         self.daily_pnl += pnl_usd
 
