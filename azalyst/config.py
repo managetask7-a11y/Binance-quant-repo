@@ -57,6 +57,10 @@ MULTI_WEIGHTS = {
     "band_rider": 0.0,
     "liquidity_hunter": 3.0,
     "alpha_x": 0.0,
+    "quantx": 2.0,
+    "ema5": 1.5,
+    "smt_divergence": 1.8,
+    "jadecap_sweep": 2.0,
 }
 
 HTF_TIMEFRAME = "4h"

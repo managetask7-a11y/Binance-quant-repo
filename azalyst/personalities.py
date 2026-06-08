@@ -66,7 +66,6 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         weights={
             **_ZERO_WEIGHTS,
             "nbb": 5.0,         # Primary — reliable candlestick patterns
-            "bnf": 5.0,         # Solid mean-reversion pullbacks
             "bb_trend": 1.6,    # KILLED — was in every big loss, toxic in this regime
             "umar": 2.8,        # Boosted — achieved 100% win rate when filtered
         },
@@ -99,7 +98,6 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "nbb": 5.0,
             "umar": 3.0,
             "jadecap": 3.0,
-            "bnf": 2.0,
         },
         atr_mult=2.0,
         tp_rr_ratio=3.0,
@@ -150,9 +148,13 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         regime=MarketRegime.WEAK_DOWNTREND,
         weights={
             **_ZERO_WEIGHTS,
-            "jadecap": 5.0,
-            "liquidity_hunter": 5.0,
+            "jadecap": 2.0,
+            "jadecap_sweep": 3.0,
+            "liquidity_hunter": 3.0,
             "nbb": 3.0,
+            "quantx": 3.0,
+            "ema5": 2.5,
+            "smt_divergence": 2.5,
         },
         atr_mult=1.5,
         tp_rr_ratio=2.5,
@@ -161,9 +163,9 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         trailing_enabled=False,
         trail_trigger_pct=0.0,
         trail_distance_pct=0.0,
-        max_open_trades=3,
+        max_open_trades=4,
         max_same_direction=3,
-        risk_multiplier=0.2,
+        risk_multiplier=0.5,
         min_agreement=1,
         weighted_threshold=5.0,
         directional_bias=-1,
@@ -172,12 +174,18 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
     ),
 
     # ═══════════════════════════════════════════════════════════════════
-    # STRONG DOWNTREND — Crisis Alpha (DISABLED)
+    # STRONG DOWNTREND — Crisis Alpha (ENABLED)
     # ═══════════════════════════════════════════════════════════════════
     MarketRegime.STRONG_DOWNTREND: Personality(
         name="Crisis Alpha",
         regime=MarketRegime.STRONG_DOWNTREND,
-        weights={**_ZERO_WEIGHTS},
+        weights={
+            **_ZERO_WEIGHTS,
+            "quantx": 5.0,
+            "ema5": 4.0,
+            "smt_divergence": 4.0,
+            "jadecap_sweep": 3.0,
+        },
         atr_mult=1.8,
         tp_rr_ratio=2.5,
         sl_min_pct=0.015,
@@ -185,13 +193,13 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         trailing_enabled=False,
         trail_trigger_pct=0.0,
         trail_distance_pct=0.0,
-        max_open_trades=0,
-        max_same_direction=0,
-        risk_multiplier=0.0,
+        max_open_trades=4,
+        max_same_direction=3,
+        risk_multiplier=0.8,
         min_agreement=1,
-        weighted_threshold=99.0,
+        weighted_threshold=4.0,
         directional_bias=-1,
-        scan_limit=10,
+        scan_limit=15,
         leverage=20,
     ),
 }
