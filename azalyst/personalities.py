@@ -66,6 +66,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
         weights={
             **_ZERO_WEIGHTS,
             "nbb": 5.0,         # Primary — reliable candlestick patterns
+            "bnf": 5.0,         # Solid mean-reversion pullbacks
             "bb_trend": 1.6,    # KILLED — was in every big loss, toxic in this regime
             "umar": 2.8,        # Boosted — achieved 100% win rate when filtered
         },
@@ -98,6 +99,7 @@ PERSONALITIES: dict[MarketRegime, Personality] = {
             "nbb": 5.0,
             "umar": 3.0,
             "jadecap": 3.0,
+            "bnf": 4.0,
         },
         atr_mult=2.0,
         tp_rr_ratio=3.0,

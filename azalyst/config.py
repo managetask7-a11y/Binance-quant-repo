@@ -41,7 +41,7 @@ SELL = -1
 HOLD = 0
 
 MULTI_WEIGHTS = {
-    "bnf": 1.0,
+    "bnf": 5.0,
     "nbb": 1.5,
     "kane": 0.8,
     "umar": 1.8,
