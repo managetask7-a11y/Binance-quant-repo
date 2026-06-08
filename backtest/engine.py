@@ -299,7 +299,7 @@ class BacktestEngine:
             scan_every_n: int = 2, dynamic_top: bool = False, top_n: int = 20,
             trade_symbols: list[str] | None = None):
         t0 = time.time()
-        self.active_symbols = list(all_data.keys())
+        self.active_symbols = sorted(list(all_data.keys()))
         if not dynamic_top:
             if trade_symbols:
                 self.active_symbols = [s for s in self.active_symbols if s in trade_symbols]
