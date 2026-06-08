@@ -687,6 +687,16 @@ class LiveTrader:
             direction = sig["direction"]
             strategies = sig.get("strategies", [])
             
+            try:
+                from azalyst.config import LONG_ONLY_COINS, SHORT_ONLY_COINS
+                if direction == BUY and symbol in SHORT_ONLY_COINS:
+                    logger.info(f"   [SKIP] {symbol} is SHORT-ONLY. Ignoring LONG signal.")
+                    continue
+                if direction == SELL and symbol in LONG_ONLY_COINS:
+                    logger.info(f"   [SKIP] {symbol} is LONG-ONLY. Ignoring SHORT signal.")
+                    continue
+            except ImportError:
+                pass
             
             open_list = list(self.open_trades.values())
             longs = [tr for tr in open_list if tr.get("direction") == BUY]

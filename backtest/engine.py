@@ -427,6 +427,16 @@ class BacktestEngine:
                 sig = multi_strategy_scan(ind, htf_df=htf_slice, personality=p)
                 if sig:
                     direction = sig["direction"]
+                    
+                    try:
+                        from azalyst.config import LONG_ONLY_COINS, SHORT_ONLY_COINS
+                        if direction == BUY and sym in SHORT_ONLY_COINS:
+                            continue
+                        if direction == SELL and sym in LONG_ONLY_COINS:
+                            continue
+                    except ImportError:
+                        pass
+                        
                     if direction == BUY and len(longs) >= p.max_same_direction:
                         continue
                     if direction == SELL and len(shorts) >= p.max_same_direction:
