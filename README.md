@@ -3,7 +3,7 @@
 Automated multi-strategy crypto trading system for Binance Futures with a real-time web dashboard and Discord alerts.
 
 ## Quick Start
-
+okay
 ```bash
 pip install -r requirements.txt
 
