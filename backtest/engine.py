@@ -74,14 +74,16 @@ class BacktestEngine:
         htf_slice = None
         if btc_sym in htf_data:
             try:
-                htf_idx = htf_data[btc_sym].index.get_indexer([current_time], method="pad")[0]
-                if htf_idx >= 200:
-                    htf_slice = htf_data[btc_sym].iloc[:htf_idx + 1]
+                # Use closed-candle filter (matches signal scanning and live trader)
+                htf_tf_mins = 240  # 4 hours
+                closed_htf = htf_data[btc_sym][htf_data[btc_sym].index + pd.Timedelta(minutes=htf_tf_mins) <= current_time]
+                if not closed_htf.empty and len(closed_htf) >= 200:
+                    htf_slice = closed_htf
             except Exception:
                 pass
 
         old = self.current_regime
-        self.current_regime = detect_regime(btc_slice, htf_df=htf_slice, symbol="__BT__")
+        self.current_regime = detect_regime(btc_slice, htf_df=htf_slice, symbol="__MARKET__")
         self.active_personality = get_personality(self.current_regime)
 
         if old != self.current_regime:
@@ -129,7 +131,15 @@ class BacktestEngine:
         effective_risk = self.risk_per_trade * p.risk_multiplier
         risk_usd = self.balance * effective_risk
 
-        ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
+        margin_pct = self.config.get("margin_per_trade_pct", 0.0)
+        if margin_pct > 0:
+            # Fixed % Margin Sizing (matches live trader)
+            margin_usd = self.balance * margin_pct
+            notional = margin_usd * p.leverage
+            ideal_qty = notional / fill
+        else:
+            # Traditional Risk-Based Sizing
+            ideal_qty = risk_usd / sl_dist if sl_dist > 0 else 0
 
         max_qty = (self.balance * p.leverage) / fill
         qty = min(ideal_qty, max_qty)
@@ -296,7 +306,7 @@ class BacktestEngine:
         self.cooldown[symbol] = self._COOLDOWN_BARS
 
     def run(self, all_data: dict, htf_data: dict, start_date, end_date, 
-            scan_every_n: int = 2, dynamic_top: bool = False, top_n: int = 20,
+            scan_every_n: int = 1, dynamic_top: bool = False, top_n: int = 20,
             trade_symbols: list[str] | None = None):
         t0 = time.time()
         self.active_symbols = sorted(list(all_data.keys()))
