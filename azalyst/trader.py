@@ -647,6 +647,8 @@ class LiveTrader:
 
             htf_df = self.fetch_ohlcv(symbol, HTF_TIMEFRAME, limit=HTF_CANDLE_LIMIT)
             if not htf_df.empty:
+                import pandas as pd
+                now = pd.Timestamp.utcnow()
                 # Calculate HTF timeframe minutes
                 htf_tf_mins = int(HTF_TIMEFRAME.replace("h", "")) * 60 if "h" in HTF_TIMEFRAME else int(HTF_TIMEFRAME.replace("m", ""))
                 # Drop incomplete HTF candle
