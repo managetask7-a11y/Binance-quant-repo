@@ -73,6 +73,14 @@ class LiveBinanceBroker(BaseBroker):
             return float(val) if val is not None else 0.0
         except Exception as exc:
             logger.error(f"Failed to fetch wallet balance: {exc}")
+            exc_str = str(exc).lower()
+            if "banned" in exc_str or "1003" in exc_str or "teapot" in exc_str:
+                now = time.time()
+                last_alert = getattr(self, "_last_ban_alert_time", 0)
+                if now - last_alert > 3600:  # 1 hour cooldown
+                    from azalyst.notifications import send_alerts
+                    send_alerts("🚨 BINANCE API IP BAN", f"Your IP has been banned/rate-limited by Binance!\n\nDetails:\n`{exc}`")
+                    self._last_ban_alert_time = now
             return None
 
     def place_market_order(self, symbol: str, side: str, qty: float) -> dict:
