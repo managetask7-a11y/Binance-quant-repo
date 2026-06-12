@@ -69,7 +69,7 @@ class BacktestEngine:
         if idx < 200:
             return
 
-        btc_slice = df.iloc[:idx + 1]
+        btc_slice = df.iloc[:idx]
 
         htf_slice = None
         if btc_sym in htf_data:
@@ -397,7 +397,7 @@ class BacktestEngine:
                 if idx < 200:
                     continue
 
-                ind = df.iloc[:idx + 1]
+                ind = df.iloc[:idx]
 
                 if ind["atr_14"].iloc[-1] == 0 or np.isnan(ind["atr_14"].iloc[-1]):
                     continue
