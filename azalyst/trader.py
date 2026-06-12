@@ -15,7 +15,7 @@ from azalyst.brokers.live_binance import LiveBinanceBroker
 from azalyst.config import (
     INITIAL_BALANCE, LEVERAGE, RISK_PER_TRADE, MARGIN_PER_TRADE_PCT, ATR_MULT, TP_RR_RATIO,
     SL_MIN_PCT, SL_MAX_PCT, MAX_OPEN_TRADES, MAX_HOLD_SCANS,
-    BREAKEVEN_AFTER_SCANS, SCAN_INTERVAL_MIN, CANDLE_TF_MIN,
+    BREAKEVEN_AFTER_SCANS, SCAN_INTERVAL_MIN, CANDLE_TF_MIN, TAKER_FEE,
     PROP_MAX_DRAWDOWN_PCT, PROP_DAILY_LOSS_PCT, SLIPPAGE_BPS,
     BUY, SELL, EXCLUDE_SYMBOLS, MIN_VOLUME_MA, TOP_N_COINS,
     MAX_SAME_DIRECTION, HTF_TIMEFRAME, HTF_CANDLE_LIMIT,
@@ -58,6 +58,8 @@ class LiveTrader:
         self.current_regime: MarketRegime = MarketRegime.SIDEWAYS
         self.active_personality: Personality = DEFAULT_PERSONALITY
         self.force_scan = False
+        self.cooldown: Dict[str, int] = {}  # Post-close cooldown per symbol (parity with backtest)
+        self._COOLDOWN_SCANS = 16  # 16 scans * 15min = 4 hours (matches backtest's 16-bar cooldown)
 
         self.config = {
             "initial_balance": INITIAL_BALANCE,
@@ -361,7 +363,7 @@ class LiveTrader:
             direction = t["direction"]
             entry = t["entry_price"]
             live_price = self._live_prices.get(sym, entry)
-            taker_fee = 0.0005 # Binance default taker fee
+            taker_fee = TAKER_FEE  # Use config constant for backtest parity
             notional = entry * t["qty"]
             fee = (notional * taker_fee) + (live_price * t["qty"] * taker_fee)
             
@@ -434,7 +436,7 @@ class LiveTrader:
 
     def _detect_regime(self):
         try:
-            # Evaluate regime exactly once every 4 scans (1 hour at 15m per scan) to match backtester
+            # Evaluate regime exactly once every 4 scans (1 hour at 15min per scan) to match backtester
             if self.scan_count > 0 and self.scan_count % 4 != 0:
                 return
 
@@ -613,8 +615,16 @@ class LiveTrader:
         scan_skipped_data = 0
         scan_no_signal = 0
 
+        # Decrement cooldowns each scan (parity with backtest engine.py)
+        for sym in list(self.cooldown.keys()):
+            self.cooldown[sym] -= 1
+            if self.cooldown[sym] <= 0:
+                del self.cooldown[sym]
+
         for symbol in symbols_to_scan:
             if symbol in self.open_trades:
+                continue
+            if symbol in self.cooldown:
                 continue
             
             try:
@@ -626,11 +636,7 @@ class LiveTrader:
                 logger.error(f"Error fetching data for {symbol} (Rate Limited?): {e}")
                 scan_skipped_data += 1
                 continue
-            import pandas as pd
-            now = pd.Timestamp.utcnow()
-            # If the last candle is still forming (its close time is in the future), drop it
-            if df.index[-1] + pd.Timedelta(minutes=CANDLE_TF_MIN) > now:
-                df = df.iloc[:-1]
+            # Note: fetch_ohlcv() already drops incomplete candles, no duplicate drop needed
 
             df = compute_indicators(df)
             if df["atr_14"].iloc[-1] == 0 or np.isnan(df["atr_14"].iloc[-1]):
@@ -927,6 +933,30 @@ class LiveTrader:
                             trade["sl_price"] = new_sl
                             logger.info(f"   [TRAIL] {symbol} SL followed down to ${new_sl:.4f}")
 
+            # --- BREAKEVEN PROTECTION (Parity with backtest engine.py) ---
+            if not trade.get("be_moved", False) and p.trailing_enabled:
+                atr_val = trade.get("atr", current_price * 0.01)
+                if atr_val > 0:
+                    if direction == BUY:
+                        pnl_atr = (current_price - entry) / atr_val
+                    else:
+                        pnl_atr = (entry - current_price) / atr_val
+                    if pnl_atr >= 1.5:
+                        fee_buffer = entry * TAKER_FEE * 2
+                        profit_lock = entry * 0.002  # 0.2% lock
+                        if direction == BUY:
+                            new_sl = entry + fee_buffer + profit_lock
+                            if new_sl > trade["sl_price"]:
+                                trade["sl_price"] = new_sl
+                                trade["be_moved"] = True
+                                logger.info(f"   [BE] {symbol} SL moved to breakeven+0.2% at ${new_sl:.4f}")
+                        else:
+                            new_sl = entry - fee_buffer - profit_lock
+                            if new_sl < trade["sl_price"]:
+                                trade["sl_price"] = new_sl
+                                trade["be_moved"] = True
+                                logger.info(f"   [BE] {symbol} SL moved to breakeven+0.2% at ${new_sl:.4f}")
+
             closed = False
             exit_price = None
             reason = ""
@@ -1066,7 +1096,7 @@ class LiveTrader:
         direction = trade["direction"]
         qty = trade["qty"]
 
-        taker_fee = 0.0005 # Binance default taker fee
+        taker_fee = TAKER_FEE  # Use config constant for backtest parity
         notional_open = entry * qty
         notional_close = exit_price * qty
         fee = (notional_open * taker_fee) + (notional_close * taker_fee)
@@ -1148,6 +1178,8 @@ class LiveTrader:
         self._save_trade(trade, "closed")
         self.closed_trades.append(trade)
         del self.open_trades[symbol]
+        self.cooldown[symbol] = self._COOLDOWN_SCANS  # 16-scan cooldown (parity with backtest)
+        logger.info(f"   [COOLDOWN] {symbol} on cooldown for {self._COOLDOWN_SCANS} scans ({self._COOLDOWN_SCANS * SCAN_INTERVAL_MIN}min)")
 
         send_alerts(
             f"{emoji} <b>TRADE CLOSED</b>",
