@@ -434,8 +434,8 @@ class LiveTrader:
 
     def _detect_regime(self):
         try:
-            # Evaluate regime exactly once every 24 scans (2 hours at 5m per scan)
-            if self.scan_count > 0 and self.scan_count % 24 != 0:
+            # Evaluate regime exactly once every 4 scans (1 hour at 15m per scan) to match backtester
+            if self.scan_count > 0 and self.scan_count % 4 != 0:
                 return
 
             regime_mode = self.config.get("regime_mode", "auto")
