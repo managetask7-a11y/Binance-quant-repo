@@ -203,10 +203,27 @@ def insert_scan_log(user_id: str, timestamp: str, symbol: str, regime: str, pers
             "personality": personality,
             "result": result_status,
         }
+        import json
+        def json_serial(obj):
+            import numpy as np
+            import pandas as pd
+            if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64)):
+                return int(obj)
+            elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+                return float(obj)
+            elif isinstance(obj, (np.ndarray,)):
+                return obj.tolist()
+            elif isinstance(obj, (pd.Timestamp,)):
+                return obj.isoformat()
+            return str(obj)
+
         if details:
-            data["details"] = details
+            # Recursively convert numpy types so Supabase's json serializer doesn't crash
+            data["details"] = json.loads(json.dumps(details, default=json_serial))
+            
         return client.table("scan_logs").insert(data).execute()
     try:
         safe_execute(_op)
-    except Exception:
-        pass
+    except Exception as e:
+        from azalyst.logger import logger
+        logger.error(f"Failed to insert scan log: {e}")
