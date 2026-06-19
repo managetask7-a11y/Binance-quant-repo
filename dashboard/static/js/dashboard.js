@@ -531,7 +531,7 @@
         var pill = $("openSettingsModal"); 
         var label = $("modeLabel");
         var dot = $("statusDot");
-        var statusText = "Scanning " + data.scan_limit;
+        var statusText = "Active (" + data.scan_limit + " Coins)";
         
         // Update Personality display
         if ($("currentPersonality")) {

@@ -1315,21 +1315,23 @@ class LiveTrader:
                     self.print_status()
 
                     logger.info(f"Next scan synced to candle close: {next_scan_dt.strftime('%H:%M:%S UTC')} (in {seconds_until} seconds)...")
-                    loops = max(1, seconds_until)
-                    for i in range(loops):
-                        if not self.running or self.force_scan:
-                            self.force_scan = False
-                            break
+                    
+                    last_balance_sync = time.time()
+                    while self.running and not self.force_scan and time.time() < next_ts:
                         try:
                             # Sync balance every 1 minute
-                            if i % 60 == 0:
+                            if time.time() - last_balance_sync >= 60:
                                 self._sync_live_balance()
+                                last_balance_sync = time.time()
                             
                             # Manage prices every 1s
                             self.manage_open_trades(main_scan=False)
                         except Exception as e:
                             logger.error(f"Error managing trades: {e}")
                         time.sleep(1)
+                    
+                    if self.force_scan:
+                        self.force_scan = False
 
                 except Exception as e:
                     logger.error(f"Scan error: {e}\n{traceback.format_exc()}")
