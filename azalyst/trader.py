@@ -1287,9 +1287,26 @@ class LiveTrader:
                     if time.time() - self.last_symbol_refresh_time >= 4 * 3600:
                         self._refresh_top_coins()
 
+                    import math
+                    now = datetime.now(timezone.utc)
+                    current_ts = now.timestamp()
+                    
+                    # 15 minutes = 900 seconds. Find the exact next 15m candle boundary.
+                    next_ts = math.ceil(current_ts / 900) * 900
+                    # Add 2 seconds buffer so Binance API returns the finalized candle
+                    next_ts += 2
+                    
+                    seconds_until = int(next_ts - current_ts)
+                    if seconds_until <= 2:
+                        # If we just crossed the boundary, jump to the NEXT 15m candle
+                        next_ts += 900
+                        seconds_until += 900
+                        
+                    next_scan_dt = datetime.fromtimestamp(next_ts, tz=timezone.utc)
+                    
                     self.scan_count += 1
-                    self.last_scan_time = datetime.now(timezone.utc).isoformat()
-                    self.next_scan_time = (datetime.now(timezone.utc) + __import__("datetime").timedelta(minutes=SCAN_INTERVAL_MIN)).isoformat()
+                    self.last_scan_time = now.isoformat()
+                    self.next_scan_time = next_scan_dt.isoformat()
 
                     self.reset_daily_pnl()
                     self.scan_and_trade()
@@ -1297,8 +1314,8 @@ class LiveTrader:
                     self._log_equity()
                     self.print_status()
 
-                    logger.info(f"Next scan in {SCAN_INTERVAL_MIN} minutes...")
-                    loops = (SCAN_INTERVAL_MIN * 60)
+                    logger.info(f"Next scan synced to candle close: {next_scan_dt.strftime('%H:%M:%S UTC')} (in {seconds_until} seconds)...")
+                    loops = max(1, seconds_until)
                     for i in range(loops):
                         if not self.running or self.force_scan:
                             self.force_scan = False
