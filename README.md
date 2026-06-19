@@ -1,6 +1,6 @@
 # Azalyst Alpha X — Multi Strategy Live Trader
 
-Automated multi-strategy crypto trading system for Binance Futures with a real-time web dashboard and Discord alerts.
+Automated multi-strategy crypto trading system for Binance Futures with a real-time web dashboard and Discord alerts
 
 ## Quick Start
 okay
