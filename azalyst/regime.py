@@ -15,20 +15,20 @@ class MarketRegime(Enum):
     STRONG_DOWNTREND = "strong_downtrend"
 
 
-_SMOOTHING_PERIOD = 12
+_SMOOTHING_PERIOD = 6
 _composite_history: deque = deque(maxlen=_SMOOTHING_PERIOD)
 _per_symbol_history: dict[str, deque] = {}
 
 _current_regime: MarketRegime = MarketRegime.SIDEWAYS
 _regime_hold_counter: int = 0
-_REGIME_MIN_HOLD = 16
+_REGIME_MIN_HOLD = 8
 
 _HYSTERESIS = {
-    MarketRegime.STRONG_UPTREND:   {"enter": 0.45, "exit": 0.25},
+    MarketRegime.STRONG_UPTREND:   {"enter": 0.40, "exit": 0.25},
     MarketRegime.WEAK_UPTREND:     {"enter": 0.15, "exit": -0.05},
     MarketRegime.SIDEWAYS:         {"enter": -0.10, "exit": 0.10},
     MarketRegime.WEAK_DOWNTREND:   {"enter": -0.40, "exit": -0.15},
-    MarketRegime.STRONG_DOWNTREND: {"enter": -0.50, "exit": -0.25},
+    MarketRegime.STRONG_DOWNTREND: {"enter": -0.45, "exit": -0.25},
 }
 
 
@@ -148,13 +148,13 @@ def _htf_score(htf_df: pd.DataFrame) -> float:
 
 
 def _raw_score_to_candidate(score: float) -> MarketRegime:
-    if score > 0.45:
+    if score > 0.40:
         return MarketRegime.STRONG_UPTREND
     if score > 0.12:
         return MarketRegime.WEAK_UPTREND
     if score > -0.12:
         return MarketRegime.SIDEWAYS
-    if score > -0.45:
+    if score > -0.40:
         return MarketRegime.WEAK_DOWNTREND
     return MarketRegime.STRONG_DOWNTREND
 
@@ -219,7 +219,10 @@ def detect(df: pd.DataFrame, htf_df: pd.DataFrame = None, symbol: str = None) ->
 
     candidate = _raw_score_to_candidate(smoothed)
 
-    if _regime_hold_counter > 0:
+    # Allow STRONG trends to override the hold lock
+    is_strong_override = candidate in [MarketRegime.STRONG_DOWNTREND, MarketRegime.STRONG_UPTREND]
+
+    if _regime_hold_counter > 0 and not is_strong_override:
         _regime_hold_counter -= 1
         return _current_regime
 
@@ -261,6 +264,12 @@ def get_regime_details(df: pd.DataFrame, htf_df: pd.DataFrame = None) -> dict:
         factors.values(),
         [0.25, 0.20, 0.15, 0.10, 0.10, 0.20]
     ))
+
+    # WATERFALL OVERRIDE: Bypass HTF drag if 15m trend is unanimous
+    if factors["ema_stack"] == -1.0 and factors["adx_di"] == -1.0 and factors["supertrend"] == -1.0:
+        raw = max(-1.0, raw * 1.2)
+    elif factors["ema_stack"] == 1.0 and factors["adx_di"] == 1.0 and factors["supertrend"] == 1.0:
+        raw = min(1.0, raw * 1.2)
 
     regime = _raw_score_to_candidate(raw)
 
