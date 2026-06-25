@@ -934,11 +934,11 @@ class LiveTrader:
             # LIVE TRADES (Native Binance Execution)
             # ----------------------------------------------------
             if self.broker.is_live and not trade.get("is_paper", False):
-                # Throttle API calls to Binance: Check position every 5 minutes (300 seconds)
+                # Throttle API calls to Binance: Check position every 1 minute (60 seconds)
                 last_check = trade.get("last_pos_check", 0)
                 current_time = time.time()
                 
-                if current_time - last_check >= 300:
+                if current_time - last_check >= 60:
                     trade["last_pos_check"] = current_time
                     pos = self.broker.fetch_position(symbol)
                     
