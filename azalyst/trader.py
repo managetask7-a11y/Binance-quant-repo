@@ -864,7 +864,10 @@ class LiveTrader:
                 # Clamp callback_rate between 0.1% and 5.0% (Binance Limits)
                 callback_rate = max(0.1, min(5.0, callback_rate))
                 
-                self.broker.place_native_orders(symbol, side, qty, trade["tp_price"], callback_rate)
+                # Set Trailing Stop activation at TP1
+                activation_price = trade["tp1"]
+                
+                self.broker.place_native_orders(symbol, side, qty, trade["sl_price"], trade["tp_price"], callback_rate, activation_price)
 
                 logger.trade(f"OPENED: {symbol} {'LONG' if direction == BUY else 'SHORT'} @ ${fill_price:.4f} | "
                              f"SL: ${trade['sl_price']:.4f} | TP: ${trade['tp_price']:.4f} | Qty: {qty:.4f}")

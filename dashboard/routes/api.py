@@ -433,7 +433,11 @@ def api_test_trade():
             # 3. Place Native Binance Conditional Orders
             callback_rate = sl_dist_pct
             callback_rate = max(0.1, min(5.0, callback_rate))
-            _trader_instance.broker.place_native_orders(symbol, side, qty, tp_price, callback_rate)
+            
+            # For Test Trades, activate trailing stop at 50% to TP
+            activation_price = fill_price + (tp_dist * 0.5) if direction == BUY else fill_price - (tp_dist * 0.5)
+            
+            _trader_instance.broker.place_native_orders(symbol, side, qty, sl_price, tp_price, callback_rate, activation_price)
 
         from datetime import datetime, timezone
         trade = {

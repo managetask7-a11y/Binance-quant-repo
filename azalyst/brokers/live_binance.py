@@ -112,18 +112,35 @@ class LiveBinanceBroker(BaseBroker):
             if "No need to change" not in str(exc):
                 logger.warning(f"Could not set margin mode for {symbol}: {exc}")
 
-    def place_native_orders(self, symbol: str, entry_side: str, qty: float, tp_price: float, callback_rate: float) -> dict:
+    def place_native_orders(self, symbol: str, entry_side: str, qty: float, sl_price: float, tp_price: float, callback_rate: float, activation_price: float = None) -> dict:
         """
-        Submits physical TAKE_PROFIT_MARKET and TRAILING_STOP_MARKET orders to Binance.
+        Submits physical STOP_MARKET, TAKE_PROFIT_MARKET and TRAILING_STOP_MARKET orders to Binance.
         """
         # The exit side is opposite of the entry side
         exit_side = "sell" if entry_side.lower() == "buy" else "buy"
         
+        sl_order = None
         tp_order = None
         trail_order = None
         
         try:
-            # 1. Take Profit
+            # 1. Hard Stop Loss
+            sl_order = self._exchange.create_order(
+                symbol=symbol,
+                type="STOP_MARKET",
+                side=exit_side,
+                amount=qty,
+                params={
+                    "stopPrice": sl_price,
+                    "reduceOnly": True
+                }
+            )
+            logger.info(f"📍 Native SL set for {symbol} at ${sl_price:.4f}")
+        except Exception as e:
+            logger.error(f"Failed to place Native SL for {symbol}: {e}")
+
+        try:
+            # 2. Take Profit
             tp_order = self._exchange.create_order(
                 symbol=symbol,
                 type="TAKE_PROFIT_MARKET",
@@ -139,22 +156,26 @@ class LiveBinanceBroker(BaseBroker):
             logger.error(f"Failed to place Native TP for {symbol}: {e}")
 
         try:
-            # 2. Trailing Stop Loss
+            # 3. Trailing Stop Loss (Activates in profit)
+            trail_params = {
+                "callbackRate": round(callback_rate, 1),
+                "reduceOnly": True
+            }
+            if activation_price:
+                trail_params["activationPrice"] = activation_price
+                
             trail_order = self._exchange.create_order(
                 symbol=symbol,
                 type="TRAILING_STOP_MARKET",
                 side=exit_side,
                 amount=qty,
-                params={
-                    "callbackRate": round(callback_rate, 1),  # Binance accepts 1 decimal for callbackRate (0.1 to 5.0)
-                    "reduceOnly": True
-                }
+                params=trail_params
             )
-            logger.info(f"📍 Native Trailing SL set for {symbol} | Callback: {callback_rate:.1f}%")
+            logger.info(f"📍 Native Trailing SL set | Activation: ${activation_price:.4f} | Callback: {callback_rate:.1f}%")
         except Exception as e:
             logger.error(f"Failed to place Native Trailing SL for {symbol}: {e}")
 
-        return {"tp": tp_order, "trail": trail_order}
+        return {"sl": sl_order, "tp": tp_order, "trail": trail_order}
 
     def cancel_symbol_orders(self, symbol: str) -> None:
         """Cancel all open orders for a specific symbol (clean up SL/TP)"""
