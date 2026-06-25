@@ -18,6 +18,10 @@ class BaseBroker(ABC):
         ...
 
     @abstractmethod
+    def place_native_orders(self, symbol: str, entry_side: str, qty: float, tp_price: float, callback_rate: float) -> dict:
+        ...
+
+    @abstractmethod
     def set_leverage(self, symbol: str, leverage: int) -> None:
         ...
 
