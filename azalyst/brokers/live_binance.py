@@ -112,13 +112,49 @@ class LiveBinanceBroker(BaseBroker):
             if "No need to change" not in str(exc):
                 logger.warning(f"Could not set margin mode for {symbol}: {exc}")
 
-    def place_sl_tp(self, symbol: str, side: str, qty: float, sl_price: float, tp_price: float) -> dict:
+    def place_native_orders(self, symbol: str, entry_side: str, qty: float, tp_price: float, callback_rate: float) -> dict:
         """
-        Virtual Stop Loss and Take Profit tracking.
-        We no longer place physical resting orders on Binance. The engine tracks these locally.
+        Submits physical TAKE_PROFIT_MARKET and TRAILING_STOP_MARKET orders to Binance.
         """
-        logger.info(f"📍 Virtual SL/TP set for {symbol} | SL: ${sl_price:.4f} | TP: ${tp_price:.4f}")
-        return {"sl": None, "tp": None}
+        # The exit side is opposite of the entry side
+        exit_side = "sell" if entry_side.lower() == "buy" else "buy"
+        
+        tp_order = None
+        trail_order = None
+        
+        try:
+            # 1. Take Profit
+            tp_order = self._exchange.create_order(
+                symbol=symbol,
+                type="TAKE_PROFIT_MARKET",
+                side=exit_side,
+                amount=qty,
+                params={
+                    "stopPrice": tp_price,
+                    "reduceOnly": True
+                }
+            )
+            logger.info(f"📍 Native TP set for {symbol} at ${tp_price:.4f}")
+        except Exception as e:
+            logger.error(f"Failed to place Native TP for {symbol}: {e}")
+
+        try:
+            # 2. Trailing Stop Loss
+            trail_order = self._exchange.create_order(
+                symbol=symbol,
+                type="TRAILING_STOP_MARKET",
+                side=exit_side,
+                amount=qty,
+                params={
+                    "callbackRate": round(callback_rate, 1),  # Binance accepts 1 decimal for callbackRate (0.1 to 5.0)
+                    "reduceOnly": True
+                }
+            )
+            logger.info(f"📍 Native Trailing SL set for {symbol} | Callback: {callback_rate:.1f}%")
+        except Exception as e:
+            logger.error(f"Failed to place Native Trailing SL for {symbol}: {e}")
+
+        return {"tp": tp_order, "trail": trail_order}
 
     def cancel_symbol_orders(self, symbol: str) -> None:
         """Cancel all open orders for a specific symbol (clean up SL/TP)"""

@@ -423,6 +423,17 @@ def api_test_trade():
             # Use fill price from order if available
             if order and order.get("average"):
                 fill_price = float(order["average"])
+                # Recalculate SL/TP offsets from REAL fill price
+                sl_dist = fill_price * p.sl_min_pct
+                sl_price = fill_price - sl_dist if direction == BUY else fill_price + sl_dist
+                tp_dist = sl_dist * p.tp_rr_ratio
+                tp_price = fill_price + tp_dist if direction == BUY else fill_price - tp_dist
+                sl_dist_pct = abs(fill_price - sl_price) / fill_price * 100
+
+            # 3. Place Native Binance Conditional Orders
+            callback_rate = sl_dist_pct
+            callback_rate = max(0.1, min(5.0, callback_rate))
+            _trader_instance.broker.place_native_orders(symbol, side, qty, tp_price, callback_rate)
 
         from datetime import datetime, timezone
         trade = {

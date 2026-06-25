@@ -858,6 +858,14 @@ class LiveTrader:
                         qty = float(real_qty)
                         trade["qty"] = qty
 
+                # 2. Place Native Binance Conditional Orders
+                # Callback rate is based on the initial ATR distance percentage
+                callback_rate = (sl_dist / fill_price) * 100.0
+                # Clamp callback_rate between 0.1% and 5.0% (Binance Limits)
+                callback_rate = max(0.1, min(5.0, callback_rate))
+                
+                self.broker.place_native_orders(symbol, side, qty, trade["tp_price"], callback_rate)
+
                 logger.trade(f"OPENED: {symbol} {'LONG' if direction == BUY else 'SHORT'} @ ${fill_price:.4f} | "
                              f"SL: ${trade['sl_price']:.4f} | TP: ${trade['tp_price']:.4f} | Qty: {qty:.4f}")
             except Exception as e:
@@ -910,7 +918,6 @@ class LiveTrader:
             except Exception as e:
                 logger.error(f"Failed to fetch ticker for {symbol}: {e}")
                 continue
-
             trade["max_price"] = max(trade.get("max_price", current_price), current_price)
             trade["min_price"] = min(trade.get("min_price", current_price), current_price)
 
@@ -919,162 +926,184 @@ class LiveTrader:
             tp = trade["tp_price"]
             entry = trade["entry_price"]
 
-            p = self.active_personality
-            if p.trailing_enabled:
-                pnl_move = (current_price - entry) / entry
-                if direction == BUY:
-                    if pnl_move >= p.trail_trigger_pct:
-                        new_sl = trade["max_price"] * (1 - p.trail_distance_pct)
-                        if new_sl > trade["sl_price"]:
-                            trade["sl_price"] = new_sl
-                            logger.info(f"   [TRAIL] {symbol} SL followed up to ${new_sl:.4f}")
-                else:
-                    if pnl_move <= -p.trail_trigger_pct:
-                        new_sl = trade["min_price"] * (1 + p.trail_distance_pct)
-                        if new_sl < trade["sl_price"]:
-                            trade["sl_price"] = new_sl
-                            logger.info(f"   [TRAIL] {symbol} SL followed down to ${new_sl:.4f}")
-
-            # --- BREAKEVEN PROTECTION (Parity with backtest engine.py) ---
-            if not trade.get("be_moved", False) and p.trailing_enabled:
-                atr_val = trade.get("atr", current_price * 0.01)
-                if atr_val > 0:
-                    if direction == BUY:
-                        pnl_atr = (current_price - entry) / atr_val
-                    else:
-                        pnl_atr = (entry - current_price) / atr_val
-                    if pnl_atr >= 1.5:
-                        fee_buffer = entry * TAKER_FEE * 2
-                        profit_lock = entry * 0.002  # 0.2% lock
-                        if direction == BUY:
-                            new_sl = entry + fee_buffer + profit_lock
-                            if new_sl > trade["sl_price"]:
-                                trade["sl_price"] = new_sl
-                                trade["be_moved"] = True
-                                logger.info(f"   [BE] {symbol} SL moved to breakeven+0.2% at ${new_sl:.4f}")
-                        else:
-                            new_sl = entry - fee_buffer - profit_lock
-                            if new_sl < trade["sl_price"]:
-                                trade["sl_price"] = new_sl
-                                trade["be_moved"] = True
-                                logger.info(f"   [BE] {symbol} SL moved to breakeven+0.2% at ${new_sl:.4f}")
-
             closed = False
             exit_price = None
             reason = ""
 
-            # --- Alpha-X STATEFUL EXIT LOGIC (High Priority) ---
-            if trade.get("is_alpha"):
-                # Fetch latest candle for band levels (Parity with Main.py)
-                df_curr = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 10)
-                if not df_curr.empty:
-                    df_curr = compute_indicators(df_curr)
-                    last_candle = df_curr.iloc[-1]
-                    
-                    upper = last_candle["bb200_upper"]
-                    lower = last_candle["bb200_lower"]
-                    tol = upper * 0.0025 # TOUCH_TOL
-                    
-                    # 1. Update Extensions (Must CLOSE beyond the band to lock-in)
-                    is_extended = "|EXTENDED" in trade.get("signal", "")
-                    if not is_extended:
-                        if (direction == BUY and last_candle["close"] > upper) or \
-                           (direction == SELL and last_candle["close"] < lower):
-                            is_extended = True
-                            trade["signal"] += "|EXTENDED"
-                            logger.info(f"   [EXTEND] {symbol} locked-in beyond the band. Awaiting harvest.")
-                            self._save_trade(trade, "open")
-
-                    # 2. Check for Band-Touch Harvest (Anti-Flush Patch)
-                    if is_extended and trade["scan_count"] > 0:
-                        is_profitable = False
-                        if direction == BUY and current_price > entry:
-                            is_profitable = True
-                        elif direction == SELL and current_price < entry:
-                            is_profitable = True
-
-                        if is_profitable:
-                            if direction == BUY:
-                                # Low wicks to band AND High is at/above band level
-                                if last_candle["low"] <= upper + tol and last_candle["high"] >= upper - tol:
-                                    exit_price = current_price
-                                    reason = "Alpha-X Profit Harvest 🏦"
-                                    closed = True
-                            else:
-                                # High wicks to band AND Low is at/below band level
-                                if last_candle["high"] >= lower - tol and last_candle["low"] <= lower + tol:
-                                    exit_price = current_price
-                                    reason = "Alpha-X Profit Harvest 🏦"
-                                    closed = True
-
-            # Standard exit checks (Fallback / Fib Targets)
-            if not closed:
-                tp1 = trade.get("tp1")
-                tp2 = trade.get("tp2")
+            # ----------------------------------------------------
+            # LIVE TRADES (Native Binance Execution)
+            # ----------------------------------------------------
+            if self.broker.is_live and not trade.get("is_paper", False):
+                # Throttle API calls to Binance: Check position every 5 minutes (300 seconds)
+                last_check = trade.get("last_pos_check", 0)
+                current_time = time.time()
                 
-                if direction == BUY:
-                    if current_price <= sl:
-                        exit_price = sl
-                        reason = "STOP_LOSS"
+                if current_time - last_check >= 300:
+                    trade["last_pos_check"] = current_time
+                    pos = self.broker.fetch_position(symbol)
+                    
+                    # If position doesn't exist or contracts == 0, Binance closed the trade!
+                    if pos is None or float(pos.get("contracts", 0)) == 0:
                         closed = True
-                    elif tp2 and current_price >= tp2:
-                        exit_price = current_price
-                        reason = "TAKE_PROFIT_2"
-                        closed = True
-                    elif tp1 and current_price >= tp1:
-                        exit_price = current_price
-                        reason = "TAKE_PROFIT_1"
-                        closed = True
-                else:
-                    if current_price >= sl:
-                        exit_price = sl
-                        reason = "STOP_LOSS"
-                        closed = True
-                    elif tp2 and current_price <= tp2:
-                        exit_price = current_price
-                        reason = "TAKE_PROFIT_2"
-                        closed = True
-                    elif tp1 and current_price <= tp1:
-                        exit_price = current_price
-                        reason = "TAKE_PROFIT_1"
-                        closed = True
-
-            if not closed:
-                pnl_pct = (current_price - entry) / entry * 100 if direction == BUY else (entry - current_price) / entry * 100
-
-                try:
-                    current_atr = trade.get("atr", current_price * 0.01)
-                except:
-                    current_atr = current_price * 0.01
-
-                sl_dist_pct = trade.get("sl_dist_pct", 2.0)
-                # Ensure trailing doesn't trigger prematurely for tight SLs, causing immediate breakeven exits
-                trail_trigger_pct = max(sl_dist_pct, 1.5)
-
-                if pnl_pct >= trail_trigger_pct:
-                    trail_dist = current_price * 0.01
+                        reason = "BINANCE_NATIVE_EXIT (SL/TP/Trail Hit)"
+                        
+                        # Try to fetch actual exit price from history, fallback to current price
+                        hist = self.broker.fetch_trade_history(symbol, 1)
+                        if hist and len(hist) > 0:
+                            exit_price = float(hist[0].get("price", current_price))
+                        else:
+                            exit_price = current_price
+                            
+                        # Wipe the surviving conditional order (OCO replacement)
+                        self.broker.cancel_symbol_orders(symbol)
+                    
+            # ----------------------------------------------------
+            # PAPER TRADES (Virtual Execution)
+            # ----------------------------------------------------
+            else:
+                p = self.active_personality
+                if p.trailing_enabled:
+                    pnl_move = (current_price - entry) / entry
                     if direction == BUY:
-                        new_sl = current_price - trail_dist
-                        new_sl = max(new_sl, entry)
-                        if new_sl > trade["sl_price"]:
-                            old_sl = trade["sl_price"]
-                            trade["sl_price"] = new_sl
-                            logger.info(f"📈 Trailing SL moved for {symbol}: ${old_sl:.4f} -> ${new_sl:.4f}")
-                            if self.broker.is_live:
-                                self.broker.cancel_symbol_orders(symbol)
-                                self.broker.place_sl_tp(symbol, "sell", trade["qty"], trade["sl_price"], trade["tp_price"])
-                            self._save_trade(trade, "open")
+                        if pnl_move >= p.trail_trigger_pct:
+                            new_sl = trade["max_price"] * (1 - p.trail_distance_pct)
+                            if new_sl > trade["sl_price"]:
+                                trade["sl_price"] = new_sl
+                                logger.info(f"   [TRAIL] {symbol} SL followed up to ${new_sl:.4f}")
                     else:
-                        new_sl = current_price + trail_dist
-                        new_sl = min(new_sl, entry)
-                        if new_sl < trade["sl_price"]:
-                            old_sl = trade["sl_price"]
-                            trade["sl_price"] = new_sl
-                            logger.info(f"📈 Trailing SL moved for {symbol}: ${old_sl:.4f} -> ${new_sl:.4f}")
-                            if self.broker.is_live:
-                                self.broker.cancel_symbol_orders(symbol)
-                                self.broker.place_sl_tp(symbol, "buy", trade["qty"], trade["sl_price"], trade["tp_price"])
-                            self._save_trade(trade, "open")
+                        if pnl_move <= -p.trail_trigger_pct:
+                            new_sl = trade["min_price"] * (1 + p.trail_distance_pct)
+                            if new_sl < trade["sl_price"]:
+                                trade["sl_price"] = new_sl
+                                logger.info(f"   [TRAIL] {symbol} SL followed down to ${new_sl:.4f}")
+
+                # --- BREAKEVEN PROTECTION (Parity with backtest engine.py) ---
+                if not trade.get("be_moved", False) and p.trailing_enabled:
+                    atr_val = trade.get("atr", current_price * 0.01)
+                    if atr_val > 0:
+                        if direction == BUY:
+                            pnl_atr = (current_price - entry) / atr_val
+                        else:
+                            pnl_atr = (entry - current_price) / atr_val
+                        if pnl_atr >= 1.5:
+                            fee_buffer = entry * TAKER_FEE * 2
+                            profit_lock = entry * 0.002  # 0.2% lock
+                            if direction == BUY:
+                                new_sl = entry + fee_buffer + profit_lock
+                                if new_sl > trade["sl_price"]:
+                                    trade["sl_price"] = new_sl
+                                    trade["be_moved"] = True
+                                    logger.info(f"   [BE] {symbol} SL moved to breakeven+0.2% at ${new_sl:.4f}")
+                            else:
+                                new_sl = entry - fee_buffer - profit_lock
+                                if new_sl < trade["sl_price"]:
+                                    trade["sl_price"] = new_sl
+                                    trade["be_moved"] = True
+                                    logger.info(f"   [BE] {symbol} SL moved to breakeven+0.2% at ${new_sl:.4f}")
+
+                # --- Alpha-X STATEFUL EXIT LOGIC (High Priority) ---
+                if trade.get("is_alpha"):
+                    # Fetch latest candle for band levels (Parity with Main.py)
+                    df_curr = self.fetch_ohlcv(symbol, f"{CANDLE_TF_MIN}m", 10)
+                    if not df_curr.empty:
+                        df_curr = compute_indicators(df_curr)
+                        last_candle = df_curr.iloc[-1]
+                        
+                        upper = last_candle["bb200_upper"]
+                        lower = last_candle["bb200_lower"]
+                        tol = upper * 0.0025 # TOUCH_TOL
+                        
+                        # 1. Update Extensions (Must CLOSE beyond the band to lock-in)
+                        is_extended = "|EXTENDED" in trade.get("signal", "")
+                        if not is_extended:
+                            if (direction == BUY and last_candle["close"] > upper) or \
+                               (direction == SELL and last_candle["close"] < lower):
+                                is_extended = True
+                                trade["signal"] += "|EXTENDED"
+                                logger.info(f"   [EXTEND] {symbol} locked-in beyond the band. Awaiting harvest.")
+
+                        # 2. Check for Band-Touch Harvest (Anti-Flush Patch)
+                        if is_extended and trade["scan_count"] > 0:
+                            is_profitable = False
+                            if direction == BUY and current_price > entry:
+                                is_profitable = True
+                            elif direction == SELL and current_price < entry:
+                                is_profitable = True
+
+                            if is_profitable:
+                                if direction == BUY:
+                                    # Low wicks to band AND High is at/above band level
+                                    if last_candle["low"] <= upper + tol and last_candle["high"] >= upper - tol:
+                                        exit_price = current_price
+                                        reason = "Alpha-X Profit Harvest 🏦"
+                                        closed = True
+                                else:
+                                    # High wicks to band AND Low is at/below band level
+                                    if last_candle["high"] >= lower - tol and last_candle["low"] <= lower + tol:
+                                        exit_price = current_price
+                                        reason = "Alpha-X Profit Harvest 🏦"
+                                        closed = True
+
+                # Standard exit checks (Fallback / Fib Targets)
+                if not closed:
+                    tp1 = trade.get("tp1")
+                    tp2 = trade.get("tp2")
+                    
+                    if direction == BUY:
+                        if current_price <= sl:
+                            exit_price = sl
+                            reason = "STOP_LOSS"
+                            closed = True
+                        elif tp2 and current_price >= tp2:
+                            exit_price = current_price
+                            reason = "TAKE_PROFIT_2"
+                            closed = True
+                        elif tp1 and current_price >= tp1:
+                            exit_price = current_price
+                            reason = "TAKE_PROFIT_1"
+                            closed = True
+                    else:
+                        if current_price >= sl:
+                            exit_price = sl
+                            reason = "STOP_LOSS"
+                            closed = True
+                        elif tp2 and current_price <= tp2:
+                            exit_price = current_price
+                            reason = "TAKE_PROFIT_2"
+                            closed = True
+                        elif tp1 and current_price <= tp1:
+                            exit_price = current_price
+                            reason = "TAKE_PROFIT_1"
+                            closed = True
+
+                if not closed:
+                    pnl_pct = (current_price - entry) / entry * 100 if direction == BUY else (entry - current_price) / entry * 100
+
+                    try:
+                        current_atr = trade.get("atr", current_price * 0.01)
+                    except:
+                        current_atr = current_price * 0.01
+
+                    sl_dist_pct = trade.get("sl_dist_pct", 2.0)
+                    # Ensure trailing doesn't trigger prematurely for tight SLs, causing immediate breakeven exits
+                    trail_trigger_pct = max(sl_dist_pct, 1.5)
+
+                    if trade.get("is_alpha") and pnl_pct >= trail_trigger_pct:
+                        trail_dist = current_price * 0.01
+                        if direction == BUY:
+                            new_sl = current_price - trail_dist
+                            new_sl = max(new_sl, entry)
+                            if new_sl > trade["sl_price"]:
+                                trade["sl_price"] = new_sl
+                                logger.info(f"📈 Trailing SL moved for {symbol}: ${trade['sl_price']:.4f}")
+                        else:
+                            new_sl = current_price + trail_dist
+                            new_sl = min(new_sl, entry)
+                            if new_sl < trade["sl_price"]:
+                                trade["sl_price"] = new_sl
+                                logger.info(f"📈 Trailing SL moved for {symbol}: ${trade['sl_price']:.4f}")
+
+                self._save_trade(trade, "open")
 
             if not closed and trade["scan_count"] >= MAX_HOLD_SCANS:
                 exit_price = current_price

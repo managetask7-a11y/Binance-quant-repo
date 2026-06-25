@@ -23,6 +23,10 @@ class DemoBroker(BaseBroker):
     def place_market_order(self, symbol: str, side: str, qty: float) -> dict:
         return {"id": "DEMO", "symbol": symbol, "side": side, "qty": qty, "status": "filled"}
 
+    def place_native_orders(self, symbol: str, entry_side: str, qty: float, tp_price: float, callback_rate: float) -> dict:
+        """Paper trades use virtual SL/TP tracking in the engine, so we just return None here."""
+        return {"tp": None, "trail": None}
+
     def set_leverage(self, symbol: str, leverage: int) -> None:
         pass
 
