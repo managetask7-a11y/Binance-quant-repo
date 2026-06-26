@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from collections import deque
-
 import numpy as np
 import pandas as pd
 
@@ -16,12 +14,6 @@ class MarketRegime(Enum):
 
 
 _SMOOTHING_PERIOD = 6
-_composite_history: deque = deque(maxlen=_SMOOTHING_PERIOD)
-_per_symbol_history: dict[str, deque] = {}
-
-_current_regime: MarketRegime = MarketRegime.SIDEWAYS
-_regime_hold_counter: int = 0
-_REGIME_MIN_HOLD = 8
 
 _HYSTERESIS = {
     MarketRegime.STRONG_UPTREND:   {"enter": 0.40, "exit": 0.25},
@@ -32,13 +24,12 @@ _HYSTERESIS = {
 }
 
 
-def _ema_stack_score(df: pd.DataFrame) -> float:
-    last = df.iloc[-1]
-    ema9 = last.get("ema_9", last["close"])
-    ema21 = last.get("ema_21", last["close"])
-    ema50 = last.get("ema_50", last["close"])
-    ema200 = last.get("ema_200", last["close"])
-    price = last["close"]
+def _ema_stack_score(row: pd.Series) -> float:
+    ema9 = row.get("ema_9", row["close"])
+    ema21 = row.get("ema_21", row["close"])
+    ema50 = row.get("ema_50", row["close"])
+    ema200 = row.get("ema_200", row["close"])
+    price = row["close"]
 
     if price > ema9 > ema21 > ema50 > ema200:
         return 1.0
@@ -55,11 +46,10 @@ def _ema_stack_score(df: pd.DataFrame) -> float:
     return 0.0
 
 
-def _adx_di_score(df: pd.DataFrame) -> float:
-    last = df.iloc[-1]
-    adx = last.get("adx", 20)
-    pdi = last.get("pdi", 0)
-    mdi = last.get("mdi", 0)
+def _adx_di_score(row: pd.Series) -> float:
+    adx = row.get("adx", 20)
+    pdi = row.get("pdi", 0)
+    mdi = row.get("mdi", 0)
 
     if np.isnan(adx) or np.isnan(pdi) or np.isnan(mdi):
         return 0.0
@@ -76,9 +66,8 @@ def _adx_di_score(df: pd.DataFrame) -> float:
     return float(np.clip(normalized, -1.0, 1.0))
 
 
-def _supertrend_score(df: pd.DataFrame) -> float:
-    last = df.iloc[-1]
-    st_dir = last.get("supertrend_dir", 0)
+def _supertrend_score(row: pd.Series) -> float:
+    st_dir = row.get("supertrend_dir", 0)
     if st_dir == 1:
         return 1.0
     elif st_dir == -1:
@@ -86,10 +75,9 @@ def _supertrend_score(df: pd.DataFrame) -> float:
     return 0.0
 
 
-def _bbw_score(df: pd.DataFrame) -> float:
-    last = df.iloc[-1]
-    bbw = last.get("bb_width", 0.1)
-    bbw_pct = last.get("bb200_squeeze", 0.5)
+def _bbw_score(row: pd.Series) -> float:
+    bbw = row.get("bb_width", 0.1)
+    bbw_pct = row.get("bb200_squeeze", 0.5)
 
     if np.isnan(bbw) or np.isnan(bbw_pct):
         return 0.0
@@ -97,8 +85,8 @@ def _bbw_score(df: pd.DataFrame) -> float:
     if bbw_pct < 0.15:
         return 0.0
     if bbw_pct > 0.80:
-        price = last["close"]
-        ema50 = last.get("ema_50", price)
+        price = row["close"]
+        ema50 = row.get("ema_50", price)
         if price > ema50:
             return 0.8
         else:
@@ -106,10 +94,9 @@ def _bbw_score(df: pd.DataFrame) -> float:
     return 0.0
 
 
-def _macd_slope_score(df: pd.DataFrame) -> float:
-    last = df.iloc[-1]
-    hist = last.get("macd_hist", 0)
-    accel = last.get("macd_hist_accel", 0)
+def _macd_slope_score(row: pd.Series) -> float:
+    hist = row.get("macd_hist", 0)
+    accel = row.get("macd_hist_accel", 0)
 
     if np.isnan(hist) or np.isnan(accel):
         return 0.0
@@ -164,7 +151,6 @@ def _apply_hysteresis(candidate: MarketRegime, smoothed: float, current: MarketR
         return current
 
     entry_thresh = _HYSTERESIS[candidate]["enter"]
-    exit_thresh = _HYSTERESIS[current]["exit"]
 
     regime_order = [
         MarketRegime.STRONG_DOWNTREND,
@@ -186,77 +172,58 @@ def _apply_hysteresis(candidate: MarketRegime, smoothed: float, current: MarketR
     return current
 
 
-def detect(df: pd.DataFrame, htf_df: pd.DataFrame = None, symbol: str = None) -> MarketRegime:
-    global _current_regime, _regime_hold_counter
-
+def detect(df: pd.DataFrame, htf_df: pd.DataFrame = None, symbol: str = None, current_regime: MarketRegime = MarketRegime.SIDEWAYS) -> MarketRegime:
     if len(df) < 200:
         return MarketRegime.SIDEWAYS
 
-    ema_s = _ema_stack_score(df)
-    adx_s = _adx_di_score(df)
-    st_s = _supertrend_score(df)
-    bbw_s = _bbw_score(df)
-    macd_s = _macd_slope_score(df)
     htf_s = _htf_score(htf_df)
-
-    raw_composite = (
-        ema_s * 0.25 +
-        adx_s * 0.20 +
-        st_s * 0.15 +
-        bbw_s * 0.10 +
-        macd_s * 0.10 +
-        htf_s * 0.20
-    )
-
-    if symbol:
-        if symbol not in _per_symbol_history:
-            _per_symbol_history[symbol] = deque(maxlen=_SMOOTHING_PERIOD)
-        _per_symbol_history[symbol].append(raw_composite)
-        smoothed = float(np.mean(list(_per_symbol_history[symbol])))
-    else:
-        _composite_history.append(raw_composite)
-        smoothed = float(np.mean(list(_composite_history)))
-
+    
+    recent_df = df.iloc[-_SMOOTHING_PERIOD:]
+    raw_scores = []
+    
+    for i in range(len(recent_df)):
+        row = recent_df.iloc[i]
+        ema_s = _ema_stack_score(row)
+        adx_s = _adx_di_score(row)
+        st_s = _supertrend_score(row)
+        bbw_s = _bbw_score(row)
+        macd_s = _macd_slope_score(row)
+        
+        raw_composite = (
+            ema_s * 0.25 +
+            adx_s * 0.20 +
+            st_s * 0.15 +
+            bbw_s * 0.10 +
+            macd_s * 0.10 +
+            htf_s * 0.20
+        )
+        raw_scores.append(raw_composite)
+        
+    smoothed = float(np.mean(raw_scores))
     candidate = _raw_score_to_candidate(smoothed)
-
-    # Allow STRONG trends to override the hold lock
-    is_strong_override = candidate in [MarketRegime.STRONG_DOWNTREND, MarketRegime.STRONG_UPTREND]
-
-    if _regime_hold_counter > 0 and not is_strong_override:
-        _regime_hold_counter -= 1
-        return _current_regime
-
-    new_regime = _apply_hysteresis(candidate, smoothed, _current_regime)
-
-    if new_regime != _current_regime:
-        _current_regime = new_regime
-        _regime_hold_counter = _REGIME_MIN_HOLD
-
-    return _current_regime
+    
+    return _apply_hysteresis(candidate, smoothed, current_regime)
 
 
 def reset_regime_state():
-    global _current_regime, _regime_hold_counter, _composite_history, _per_symbol_history
-    _current_regime = MarketRegime.SIDEWAYS
-    _regime_hold_counter = 0
-    _composite_history = deque(maxlen=_SMOOTHING_PERIOD)
-    _per_symbol_history = {}
+    pass
 
 
-def detect_market_wide(btc_df: pd.DataFrame, btc_htf_df: pd.DataFrame = None) -> MarketRegime:
-    return detect(btc_df, htf_df=btc_htf_df, symbol="__MARKET__")
+def detect_market_wide(btc_df: pd.DataFrame, btc_htf_df: pd.DataFrame = None, current_regime: MarketRegime = MarketRegime.SIDEWAYS) -> MarketRegime:
+    return detect(btc_df, htf_df=btc_htf_df, symbol="__MARKET__", current_regime=current_regime)
 
 
 def get_regime_details(df: pd.DataFrame, htf_df: pd.DataFrame = None) -> dict:
     if len(df) < 200:
         return {"regime": MarketRegime.SIDEWAYS.value, "composite": 0.0, "factors": {}}
 
+    last_row = df.iloc[-1]
     factors = {
-        "ema_stack": round(_ema_stack_score(df), 3),
-        "adx_di": round(_adx_di_score(df), 3),
-        "supertrend": round(_supertrend_score(df), 3),
-        "bb_width": round(_bbw_score(df), 3),
-        "macd_slope": round(_macd_slope_score(df), 3),
+        "ema_stack": round(_ema_stack_score(last_row), 3),
+        "adx_di": round(_adx_di_score(last_row), 3),
+        "supertrend": round(_supertrend_score(last_row), 3),
+        "bb_width": round(_bbw_score(last_row), 3),
+        "macd_slope": round(_macd_slope_score(last_row), 3),
         "htf": round(_htf_score(htf_df), 3),
     }
 

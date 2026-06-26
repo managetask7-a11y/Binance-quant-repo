@@ -11,7 +11,7 @@ from azalyst.config import (
     LEVERAGE, RISK_PER_TRADE, ATR_MULT, TP_RR_RATIO,
     SL_MIN_PCT, SL_MAX_PCT, MAX_OPEN_TRADES, MAX_HOLD_SCANS,
     BREAKEVEN_AFTER_SCANS, MAX_SAME_DIRECTION, GOLD_COINS,
-    REGIME_BTC_SYMBOL
+    REGIME_BTC_SYMBOL, INITIAL_BALANCE, MARGIN_PER_TRADE_PCT,
 )
 from backtest.data import DataProvider
 from backtest.engine import BacktestEngine
@@ -20,7 +20,7 @@ from backtest.report import generate_report, print_report, save_trades_csv
 
 def _build_config() -> dict:
     return {
-        "initial_balance": 100,
+        "initial_balance": INITIAL_BALANCE,  # [D4 FIX] Was hardcoded 100, now synced with live config
         "leverage": LEVERAGE,
         "risk_per_trade": RISK_PER_TRADE,
         "atr_mult": ATR_MULT,
@@ -31,6 +31,7 @@ def _build_config() -> dict:
         "max_hold_scans": MAX_HOLD_SCANS,
         "breakeven_scans": BREAKEVEN_AFTER_SCANS,
         "max_same_direction": MAX_SAME_DIRECTION,
+        "margin_per_trade_pct": MARGIN_PER_TRADE_PCT,  # [D3 FIX] Was missing, fell back to 0.0 (risk-based sizing)
     }
 
 
@@ -41,7 +42,7 @@ def main():
     parser.add_argument("--top-coins", type=int, default=25, help="Number of top coins (default: 25)")
     parser.add_argument("--dynamic-top", action="store_true", help="Enable dynamic symbol selection during backtest")
     parser.add_argument("--gold-list", action="store_true", help="Use the hardcoded Gold List of 30 high-quality coins")
-    parser.add_argument("--scan-bars", type=int, default=2, help="Scan every N bars (default: 2)")
+    parser.add_argument("--scan-bars", type=int, default=1, help="Scan every N bars (default: 1, synced with live)")  # [D1 FIX] Was 2, live scans every candle
     parser.add_argument("--no-regime", action="store_true", help="Disable regime adaptation")
     parser.add_argument("--clear-cache", action="store_true", help="Clear cached data and exit")
     parser.add_argument("--optimize", action="store_true", help="Compare regime vs no-regime")

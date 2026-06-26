@@ -13,7 +13,7 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
-INITIAL_BALANCE = 10
+INITIAL_BALANCE = 100
 LEVERAGE = 15
 MARGIN_PER_TRADE_PCT = 0.12  # 12% of balance as margin (~$7 on a $58 account). Set to 0 to use strict Risk-Based sizing.
 RISK_PER_TRADE = 0.07

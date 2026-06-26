@@ -26,7 +26,7 @@ class LiveBinanceBroker(BaseBroker):
             "enableRateLimit": True,
         })
         if self._testnet:
-            exchange.set_sandbox_mode(True)
+            exchange.enable_demo_trading(True)
         return exchange
 
     @property
