@@ -17,15 +17,17 @@ class LiveBinanceBroker(BaseBroker):
         self._api_key = api_key
         self._api_secret = api_secret
         self._testnet = testnet
-        self._exchange = self._build_exchange()
+        self._exchange = self._build_exchange(testnet=testnet)
+        self._public_exchange = self._build_exchange(testnet=False)
+        self._trading_markets = None
 
-    def _build_exchange(self) -> ccxt.binance:
+    def _build_exchange(self, testnet: bool) -> ccxt.binance:
         exchange = ccxt.binanceusdm({
             "apiKey": self._api_key,
             "secret": self._api_secret,
             "enableRateLimit": True,
         })
-        if self._testnet:
+        if testnet:
             exchange.enable_demo_trading(True)
         return exchange
 
@@ -36,6 +38,15 @@ class LiveBinanceBroker(BaseBroker):
     @property
     def testnet(self) -> bool:
         return self._testnet
+
+    def get_trading_markets(self) -> list:
+        if self._trading_markets is None:
+            try:
+                self._trading_markets = list(self._exchange.load_markets().keys())
+            except Exception as e:
+                logger.error(f"Failed to load trading markets: {e}")
+                self._trading_markets = []
+        return self._trading_markets
 
     def validate_connection(self) -> dict:
         try:
@@ -186,18 +197,18 @@ class LiveBinanceBroker(BaseBroker):
             logger.error(f"Failed to cancel orders for {symbol}: {e}")
 
     def load_markets(self) -> dict:
-        return self._exchange.load_markets()
+        return self._public_exchange.load_markets()
 
     def fetch_tickers(self) -> dict:
-        return self._exchange.fetch_tickers()
+        return self._public_exchange.fetch_tickers()
 
     def fetch_ticker(self, symbol: str) -> dict:
         # --- ANTI-BAN DELAY: 2s cooldown per ticker fetch ---
         time.sleep(2)
-        return self._exchange.fetch_ticker(symbol)
+        return self._public_exchange.fetch_ticker(symbol)
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list:
-        return self._exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        return self._public_exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
 
     def fetch_trade_history(self, symbol: str, limit: int) -> list:
         try:

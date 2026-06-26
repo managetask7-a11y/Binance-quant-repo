@@ -69,7 +69,11 @@ class BacktestEngine:
         if idx < 200:
             return
 
-        btc_slice = df.iloc[:idx]
+        # Pass the FULL BTC dataframe up to (and including) the current bar,
+        # matching the live trader which always fetches 1000 bars and passes
+        # them all to detect(). The stateless detector uses the last N bars
+        # for smoothing + hysteresis, so more history = more stable.
+        btc_slice = df.iloc[:idx + 1]
 
         htf_slice = None
         if btc_sym in htf_data:
