@@ -26,9 +26,9 @@ class MarketRegime(Enum):
 # accumulated deque or global current_regime.
 # ═══════════════════════════════════════════════════════════════════════════
 
-_SMOOTHING_PERIOD = 6
-_REGIME_MIN_HOLD = 8
-_LOOKBACK_BARS = 50
+_SMOOTHING_PERIOD = 12
+_REGIME_MIN_HOLD = 16
+_LOOKBACK_BARS = 100
 
 _HYSTERESIS = {
     MarketRegime.STRONG_UPTREND:   {"enter": 0.40, "exit": 0.25},

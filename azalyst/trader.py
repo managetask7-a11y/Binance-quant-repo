@@ -459,7 +459,7 @@ class LiveTrader:
                 if not btc_htf.empty:
                     btc_htf["ema_50"] = btc_htf["close"].ewm(span=HTF_EMA_FAST, adjust=False).mean()
                     btc_htf["ema_200"] = btc_htf["close"].ewm(span=HTF_EMA_SLOW, adjust=False).mean()
-                self.current_regime = detect_regime(btc_df, htf_df=btc_htf, symbol="__MARKET__", current_regime=self.current_regime)
+                self.current_regime = detect_regime(btc_df, htf_df=btc_htf, symbol="__MARKET__")
 
             self.active_personality = get_personality(self.current_regime)
             if old_regime != self.current_regime:
