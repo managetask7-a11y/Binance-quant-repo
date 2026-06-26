@@ -87,7 +87,7 @@ class BacktestEngine:
                 pass
 
         old = self.current_regime
-        self.current_regime = detect_regime(btc_slice, htf_df=htf_slice, symbol="__MARKET__", current_regime=self.current_regime)
+        self.current_regime = detect_regime(btc_slice, htf_df=htf_slice, symbol="__MARKET__")
         self.active_personality = get_personality(self.current_regime)
 
         if old != self.current_regime:
@@ -451,7 +451,7 @@ class BacktestEngine:
                 if idx < 200:
                     continue
 
-                ind = df.iloc[:idx]
+                ind = df.iloc[:idx + 1]
 
                 if ind["atr_14"].iloc[-1] == 0 or np.isnan(ind["atr_14"].iloc[-1]):
                     continue

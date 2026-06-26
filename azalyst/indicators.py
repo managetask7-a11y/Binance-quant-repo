@@ -89,10 +89,10 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df["vol_ma_20"] = df["volume"].rolling(20).mean()
 
-    df["local_swing_high"] = df["high"].rolling(60, center=True).max()
-    df["local_swing_low"] = df["low"].rolling(60, center=True).min()
-    df["swing_high"] = df["high"].rolling(5, center=True).max()
-    df["swing_low"] = df["low"].rolling(5, center=True).min()
+    df["local_swing_high"] = df["high"].rolling(60, center=False).max()
+    df["local_swing_low"] = df["low"].rolling(60, center=False).min()
+    df["swing_high"] = df["high"].rolling(5, center=False).max()
+    df["swing_low"] = df["low"].rolling(5, center=False).min()
 
     df["momentum_9"] = df["close"].diff(9)
 
