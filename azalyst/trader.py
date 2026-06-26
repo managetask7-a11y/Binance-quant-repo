@@ -225,7 +225,12 @@ class LiveTrader:
     def _sync_live_balance(self) -> None:
         if not self.broker.is_live:
             return
-        fetched = self.broker.fetch_wallet_balance()
+            
+        if getattr(self.broker, "testnet", False):
+            fetched = 100.0
+        else:
+            fetched = self.broker.fetch_wallet_balance()
+            
         if fetched is not None:
             # Detect external deposits/withdrawals
             if self.live_balance is not None and fetched != self.live_balance:
@@ -810,8 +815,14 @@ class LiveTrader:
             "is_alpha": "alpha_x" in sig.get("strategies", []),
             "extended": False,
         }
+        # Support virtual fallback for missing demo markets (e.g. ICP)
+        if self.broker.is_live and getattr(self.broker, "testnet", False):
+            trading_markets = getattr(self.broker, "get_trading_markets", lambda: [])()
+            if trading_markets and symbol not in trading_markets:
+                trade["is_paper"] = True
+                logger.warning(f"⚠️ {symbol} missing on Demo Exchange! Executing as VIRTUAL paper trade.")
 
-        if self.broker.is_live:
+        if self.broker.is_live and not trade.get("is_paper", False):
             try:
                 side = "buy" if direction == BUY else "sell"
                 
@@ -1149,7 +1160,7 @@ class LiveTrader:
         trade["reason"] = reason
 
         # --- SKIP BINANCE ONLY for paper-only trades ---
-        is_paper_trade = trade.get("signal", "") == "PAPER_TRADE"
+        is_paper_trade = trade.get("is_paper", False) or trade.get("signal", "") == "PAPER_TRADE"
 
         if self.broker.is_live and not is_paper_trade:
             max_retries = 3

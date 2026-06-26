@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+
 import numpy as np
 import pandas as pd
 
@@ -13,7 +14,21 @@ class MarketRegime(Enum):
     STRONG_DOWNTREND = "strong_downtrend"
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# FULLY STATELESS REGIME DETECTION
+# ═══════════════════════════════════════════════════════════════════════════
+# detect() has ZERO global mutable state. The regime is computed purely from
+# the passed-in dataframe every call. This guarantees backtest and live agree
+# on identical data: same BTC bars → same regime.
+#
+# The detector replays a lookback window of smoothed scores through a
+# hysteresis chain with hold-counter logic, all computed from data — no
+# accumulated deque or global current_regime.
+# ═══════════════════════════════════════════════════════════════════════════
+
 _SMOOTHING_PERIOD = 6
+_REGIME_MIN_HOLD = 8
+_LOOKBACK_BARS = 50
 
 _HYSTERESIS = {
     MarketRegime.STRONG_UPTREND:   {"enter": 0.40, "exit": 0.25},
@@ -22,6 +37,14 @@ _HYSTERESIS = {
     MarketRegime.WEAK_DOWNTREND:   {"enter": -0.40, "exit": -0.15},
     MarketRegime.STRONG_DOWNTREND: {"enter": -0.45, "exit": -0.25},
 }
+
+_REGIME_ORDER = [
+    MarketRegime.STRONG_DOWNTREND,
+    MarketRegime.WEAK_DOWNTREND,
+    MarketRegime.SIDEWAYS,
+    MarketRegime.WEAK_UPTREND,
+    MarketRegime.STRONG_UPTREND,
+]
 
 
 def _ema_stack_score(row: pd.Series) -> float:
@@ -76,10 +99,9 @@ def _supertrend_score(row: pd.Series) -> float:
 
 
 def _bbw_score(row: pd.Series) -> float:
-    bbw = row.get("bb_width", 0.1)
     bbw_pct = row.get("bb200_squeeze", 0.5)
 
-    if np.isnan(bbw) or np.isnan(bbw_pct):
+    if np.isnan(bbw_pct):
         return 0.0
 
     if bbw_pct < 0.15:
@@ -87,10 +109,7 @@ def _bbw_score(row: pd.Series) -> float:
     if bbw_pct > 0.80:
         price = row["close"]
         ema50 = row.get("ema_50", price)
-        if price > ema50:
-            return 0.8
-        else:
-            return -0.8
+        return 0.8 if price > ema50 else -0.8
     return 0.0
 
 
@@ -118,18 +137,18 @@ def _htf_score(htf_df: pd.DataFrame) -> float:
 
     last = htf_df.iloc[-1]
 
-    if "ema_50" not in htf_df.columns or "ema_200" not in htf_df.columns:
-        ema50 = htf_df["close"].ewm(span=50, adjust=False).mean().iloc[-1]
-        ema200 = htf_df["close"].ewm(span=200, adjust=False).mean().iloc[-1]
-    else:
+    if "ema_50" in htf_df.columns and "ema_200" in htf_df.columns:
         ema50 = last["ema_50"]
         ema200 = last["ema_200"]
+    else:
+        ema50 = htf_df["close"].ewm(span=50, adjust=False).mean().iloc[-1]
+        ema200 = htf_df["close"].ewm(span=200, adjust=False).mean().iloc[-1]
 
     price = last["close"]
 
     if price > ema200 and ema50 > ema200:
         return 1.0
-    elif price < ema200 and ema50 < ema200:
+    if price < ema200 and ema50 < ema200:
         return -1.0
     return 0.0
 
@@ -146,84 +165,103 @@ def _raw_score_to_candidate(score: float) -> MarketRegime:
     return MarketRegime.STRONG_DOWNTREND
 
 
-def _apply_hysteresis(candidate: MarketRegime, smoothed: float, current: MarketRegime) -> MarketRegime:
-    if candidate == current:
-        return current
+def detect(df: pd.DataFrame, htf_df: pd.DataFrame = None, symbol: str = None) -> MarketRegime:
+    """Fully stateless regime detection. Same data → same regime, always.
 
-    entry_thresh = _HYSTERESIS[candidate]["enter"]
+    Computes smoothed composite scores over the last _LOOKBACK_BARS bars,
+    then replays a hysteresis chain with hold-counter from SIDEWAYS.
+    No global state — result depends only on the data passed in.
 
-    regime_order = [
-        MarketRegime.STRONG_DOWNTREND,
-        MarketRegime.WEAK_DOWNTREND,
-        MarketRegime.SIDEWAYS,
-        MarketRegime.WEAK_UPTREND,
-        MarketRegime.STRONG_UPTREND,
-    ]
-    current_idx = regime_order.index(current)
-    candidate_idx = regime_order.index(candidate)
-
-    if candidate_idx > current_idx:
-        if smoothed >= entry_thresh:
-            return candidate
-    else:
-        if smoothed <= -abs(entry_thresh) if entry_thresh > 0 else smoothed <= entry_thresh:
-            return candidate
-
-    return current
-
-
-def detect(df: pd.DataFrame, htf_df: pd.DataFrame = None, symbol: str = None, current_regime: MarketRegime = MarketRegime.SIDEWAYS) -> MarketRegime:
+    Args:
+        df: 15m BTC dataframe with indicators computed (>=200 rows).
+        htf_df: 4h BTC dataframe (optional).
+        symbol: ignored (kept for API backward-compatibility).
+    """
     if len(df) < 200:
         return MarketRegime.SIDEWAYS
 
     htf_s = _htf_score(htf_df)
-    
-    recent_df = df.iloc[-_SMOOTHING_PERIOD:]
-    raw_scores = []
-    
-    for i in range(len(recent_df)):
-        row = recent_df.iloc[i]
-        ema_s = _ema_stack_score(row)
-        adx_s = _adx_di_score(row)
-        st_s = _supertrend_score(row)
-        bbw_s = _bbw_score(row)
-        macd_s = _macd_slope_score(row)
-        
-        raw_composite = (
-            ema_s * 0.25 +
-            adx_s * 0.20 +
-            st_s * 0.15 +
-            bbw_s * 0.10 +
-            macd_s * 0.10 +
-            htf_s * 0.20
-        )
-        raw_scores.append(raw_composite)
-        
-    smoothed = float(np.mean(raw_scores))
-    candidate = _raw_score_to_candidate(smoothed)
-    
-    return _apply_hysteresis(candidate, smoothed, current_regime)
+
+    # Build a history of smoothed composite scores over the lookback window.
+    # At each step, the smoothed value is the mean of the last _SMOOTHING_PERIOD
+    # raw composite scores — exactly like the old deque approach, but computed
+    # from data instead of accumulated state.
+    lookback = min(len(df), _LOOKBACK_BARS)
+    smoothed_history = []
+    for offset in range(lookback):
+        idx = len(df) - lookback + offset
+        chunk = df.iloc[max(0, idx - _SMOOTHING_PERIOD + 1):idx + 1]
+        if len(chunk) < 1:
+            smoothed_history.append(0.0)
+            continue
+        last_n = chunk.tail(_SMOOTHING_PERIOD)
+        comps = []
+        for _, bar in last_n.iterrows():
+            c = (
+                _ema_stack_score(bar) * 0.25 +
+                _adx_di_score(bar) * 0.20 +
+                _supertrend_score(bar) * 0.15 +
+                _bbw_score(bar) * 0.10 +
+                _macd_slope_score(bar) * 0.10 +
+                htf_s * 0.20
+            )
+            comps.append(c)
+        smoothed_history.append(float(np.mean(comps)))
+
+    # Replay hysteresis with hold counter (all from data — no global state).
+    # Start from SIDEWAYS and walk forward through the score history.
+    current = MarketRegime.SIDEWAYS
+    hold = 0
+    for smoothed in smoothed_history:
+        candidate = _raw_score_to_candidate(smoothed)
+
+        if candidate == current:
+            hold = 0
+            continue
+
+        # STRONG trends can override the hold lock
+        is_strong = candidate in (MarketRegime.STRONG_DOWNTREND, MarketRegime.STRONG_UPTREND)
+        if hold > 0 and not is_strong:
+            hold -= 1
+            continue
+
+        entry_thresh = _HYSTERESIS[candidate]["enter"]
+        exit_thresh = _HYSTERESIS[current]["exit"]
+        current_idx = _REGIME_ORDER.index(current)
+        candidate_idx = _REGIME_ORDER.index(candidate)
+
+        if candidate_idx > current_idx:
+            if smoothed >= entry_thresh:
+                current = candidate
+                hold = _REGIME_MIN_HOLD
+        else:
+            if smoothed <= exit_thresh:
+                current = candidate
+                hold = _REGIME_MIN_HOLD
+
+    return current
 
 
 def reset_regime_state():
-    pass
+    """No-op. Kept for backward compatibility — detector is now stateless."""
+    return
 
 
-def detect_market_wide(btc_df: pd.DataFrame, btc_htf_df: pd.DataFrame = None, current_regime: MarketRegime = MarketRegime.SIDEWAYS) -> MarketRegime:
-    return detect(btc_df, htf_df=btc_htf_df, symbol="__MARKET__", current_regime=current_regime)
+def detect_market_wide(btc_df: pd.DataFrame, btc_htf_df: pd.DataFrame = None) -> MarketRegime:
+    return detect(btc_df, htf_df=btc_htf_df, symbol="__MARKET__")
 
 
 def get_regime_details(df: pd.DataFrame, htf_df: pd.DataFrame = None) -> dict:
     if len(df) < 200:
         return {"regime": MarketRegime.SIDEWAYS.value, "composite": 0.0, "factors": {}}
 
-    last_row = df.iloc[-1]
+    last = df.iloc[-1]
     factors = {
-        "ema_stack": round(_ema_stack_score(last_row), 3),
-        "adx_di": round(_adx_di_score(last_row), 3),
-        "supertrend": round(_supertrend_score(last_row), 3),
-        "bb_width": round(_bbw_score(last_row), 3),
-        "macd_slope": round(_macd_slope_score(last_row), 3),
+        "ema_stack": round(_ema_stack_score(last), 3),
+        "adx_di": round(_adx_di_score(last), 3),
+        "supertrend": round(_supertrend_score(last), 3),
+        "bb_width": round(_bbw_score(last), 3),
+        "macd_slope": round(_macd_slope_score(last), 3),
         "htf": round(_htf_score(htf_df), 3),
     }
 
@@ -238,7 +276,7 @@ def get_regime_details(df: pd.DataFrame, htf_df: pd.DataFrame = None) -> dict:
     elif factors["ema_stack"] == 1.0 and factors["adx_di"] == 1.0 and factors["supertrend"] == 1.0:
         raw = min(1.0, raw * 1.2)
 
-    regime = _raw_score_to_candidate(raw)
+    regime = detect(df, htf_df=htf_df)
 
     return {
         "regime": regime.value,
