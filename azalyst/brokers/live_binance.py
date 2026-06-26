@@ -22,11 +22,15 @@ class LiveBinanceBroker(BaseBroker):
         self._trading_markets = None
 
     def _build_exchange(self, testnet: bool) -> ccxt.binance:
-        exchange = ccxt.binanceusdm({
-            "apiKey": self._api_key,
-            "secret": self._api_secret,
+        config = {
             "enableRateLimit": True,
-        })
+        }
+        # Only attach API keys if we are building the target execution exchange
+        if testnet == self._testnet:
+            config["apiKey"] = self._api_key
+            config["secret"] = self._api_secret
+            
+        exchange = ccxt.binanceusdm(config)
         if testnet:
             exchange.enable_demo_trading(True)
         return exchange
