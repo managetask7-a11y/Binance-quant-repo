@@ -178,7 +178,9 @@ class DataProvider:
     ) -> tuple:
         tf_str = f"{CANDLE_TF_MIN}m"
 
-        all_data_raw = self.fetch_all(symbols, tf_str, start_date, end_date, label="Primary")
+        # [D11 FIX] lookback_bars=1000 matches live trader's fetch_ohlcv(limit=1000)
+        # Was 250, which caused massive indicator divergence (MACD 51%, RSI 10%, ATR 3%)
+        all_data_raw = self.fetch_all(symbols, tf_str, start_date, end_date, lookback_bars=1000, label="Primary")
 
         print(f"\n  Computing indicators for {len(all_data_raw)} symbols...")
         all_data = {}
@@ -191,7 +193,7 @@ class DataProvider:
 
         htf_data_raw = self.fetch_all(
             list(all_data.keys()), "4h", start_date, end_date,
-            lookback_bars=250, label="HTF",
+            lookback_bars=1000, label="HTF",  # [D11 FIX] Was 250, live fetches limit=1000
         )
 
         htf_data = {}

@@ -83,7 +83,7 @@ class BacktestEngine:
                 pass
 
         old = self.current_regime
-        self.current_regime = detect_regime(btc_slice, htf_df=htf_slice, symbol="__MARKET__")
+        self.current_regime = detect_regime(btc_slice, htf_df=htf_slice, symbol="__MARKET__", current_regime=self.current_regime)
         self.active_personality = get_personality(self.current_regime)
 
         if old != self.current_regime:
@@ -118,6 +118,7 @@ class BacktestEngine:
         price = bar["close"]
         p = self.active_personality
 
+        # [REAL-WORLD SIMULATION] Apply slippage to entry price
         slip = SLIPPAGE_BPS / 10000
         fill = price * (1 + slip) if direction == BUY else price * (1 - slip)
 
@@ -201,9 +202,9 @@ class BacktestEngine:
 
         # ═══════════════════════════════════════════════════════════════
         # PRIORITY 1: STOP LOSS / TAKE PROFIT CHECKS
-        # TP1 is a HARD EXIT — take the money! In crypto, price often
-        # retraces after big moves. The lock-and-run approach gave back
-        # $100+ in profit. Hard TP1 captured $105 from just 2 trades.
+        # [REAL-WORLD SIMULATION] Uses intra-bar High/Low wicks.
+        # This accurately simulates real Binance execution where limits 
+        # or stops are triggered mid-candle, not just at the close.
         # ═══════════════════════════════════════════════════════════════
         if not closed:
             if direction == BUY:
@@ -249,26 +250,59 @@ class BacktestEngine:
 
         # ═══════════════════════════════════════════════════════════════
         # PRIORITY 3: TRAILING STOP (percentage-based from peak)
-        # Trails from the highest price reached. Uses personality
-        # settings for trigger % and trail distance %.
+        # [D8 FIX] Uses same pnl_move formula as live trader for both
+        # LONG and SHORT directions.
         # ═══════════════════════════════════════════════════════════════
         p = self.active_personality
         if not closed and p.trailing_enabled:
-            pnl_move = (close - entry) / entry if direction == BUY else (entry - close) / entry
-            if pnl_move >= p.trail_trigger_pct:
-                if direction == BUY:
+            pnl_move = (close - entry) / entry  # same as live for LONG
+            if direction == BUY:
+                if pnl_move >= p.trail_trigger_pct:
                     new_sl = trade["max_price"] * (1 - p.trail_distance_pct)
                     new_sl = max(new_sl, entry)  # never below entry
                     if new_sl > trade["sl_price"]:
                         trade["sl_price"] = new_sl
-                else:
+            else:
+                # [D8 FIX] Live SHORT uses: pnl_move <= -trail_trigger_pct
+                # i.e., pnl_move is still (close-entry)/entry, but for shorts
+                # a profitable move means pnl_move is negative
+                if pnl_move <= -p.trail_trigger_pct:
                     new_sl = trade["min_price"] * (1 + p.trail_distance_pct)
                     new_sl = min(new_sl, entry)  # never above entry
                     if new_sl < trade["sl_price"]:
                         trade["sl_price"] = new_sl
 
         # ═══════════════════════════════════════════════════════════════
-        # PRIORITY 4: MAX HOLD TIME
+        # PRIORITY 4: ALPHA-X STATEFUL EXIT (ported from live trader)
+        # [D7 FIX] Live has Alpha-X EXTENDED + band-harvest logic that
+        # was completely missing from the backtest engine.
+        # ═══════════════════════════════════════════════════════════════
+        if not closed and trade.get("is_alpha"):
+            upper = bar.get("bb200_upper", 0)
+            lower = bar.get("bb200_lower", 0)
+            tol = upper * 0.0025 if upper > 0 else 0  # TOUCH_TOL
+
+            # 1. Update Extensions (must CLOSE beyond band)
+            is_extended = trade.get("extended", False)
+            if not is_extended:
+                if (direction == BUY and close > upper) or \
+                   (direction == SELL and close < lower):
+                    trade["extended"] = True
+
+            # 2. Band-Touch Harvest
+            if trade.get("extended") and trade["scan_count"] > 0:
+                is_profitable = (direction == BUY and close > entry) or \
+                                (direction == SELL and close < entry)
+                if is_profitable:
+                    if direction == BUY:
+                        if low <= upper + tol and high >= upper - tol:
+                            exit_price, reason, closed = close, "ALPHA_X_HARVEST", True
+                    else:
+                        if high >= lower - tol and low <= lower + tol:
+                            exit_price, reason, closed = close, "ALPHA_X_HARVEST", True
+
+        # ═══════════════════════════════════════════════════════════════
+        # PRIORITY 5: MAX HOLD TIME
         # ═══════════════════════════════════════════════════════════════
         if not closed and trade["scan_count"] >= self.max_hold:
             exit_price, reason, closed = close, "MAX_HOLD_TIME", True
@@ -309,11 +343,13 @@ class BacktestEngine:
             scan_every_n: int = 1, dynamic_top: bool = False, top_n: int = 20,
             trade_symbols: list[str] | None = None):
         t0 = time.time()
-        self.active_symbols = sorted(list(all_data.keys()))
-        if not dynamic_top:
-            if trade_symbols:
-                self.active_symbols = [s for s in self.active_symbols if s in trade_symbols]
-            else:
+        # [D2 FIX] Preserve trade_symbols insertion order instead of sorting alphabetically.
+        # Live trader uses GOLD_COINS order; sorted() changed symbol priority when order cap was hit.
+        if trade_symbols:
+            self.active_symbols = [s for s in trade_symbols if s in all_data]
+        else:
+            self.active_symbols = sorted(list(all_data.keys()))
+            if not dynamic_top:
                 self.active_symbols = self.active_symbols[:top_n]
 
         all_times = set()
@@ -352,7 +388,8 @@ class BacktestEngine:
             if bar_counter % scan_every_n != 0:
                 continue
 
-            if bar_counter % (scan_every_n * 4) == 0:
+            # [D14 FIX] Check regime on every scan to match live trader
+            if bar_counter % scan_every_n == 0:
                 self._detect_regime_at_bar(all_data, htf_data, t)
                 
                 # Dynamic Symbol Re-ranking
@@ -373,18 +410,21 @@ class BacktestEngine:
                     symbol_volumes.sort(key=lambda x: x[1], reverse=True)
                     self.active_symbols = [s for s, _ in symbol_volumes[:top_n]]
 
-            self._check_drawdown_halt(t)
-            if self.trading_halted:
-                self.equity_curve.append({"time": t, "balance": self.balance, "open": len(self.open_trades)})
-                continue
+            # [D13 FIX] Drawdown halt disabled to match live trader behavior
+            # Live trader.py says: "Prop Firm Safety is DISABLED. Continuing trade scan..."
+            # self._check_drawdown_halt(t)
+            # if self.trading_halted:
+            #     self.equity_curve.append({"time": t, "balance": self.balance, "open": len(self.open_trades)})
+            #     continue
 
             p = self.active_personality
             if len(self.open_trades) >= min(self.max_open, p.max_open_trades):
                 continue
 
-            used_margin = sum([(tr["qty"] * tr["entry_price"]) / self.leverage for tr in self.open_trades.values()])
-            if used_margin >= self.balance * 0.95:
-                continue
+            # [M6 FIX] Margin utilization cap removed — live trader does NOT have this check
+            # used_margin = sum([(tr["qty"] * tr["entry_price"]) / self.leverage for tr in self.open_trades.values()])
+            # if used_margin >= self.balance * 0.95:
+            #     continue
 
             # Sync scan limit with active personality (Matches live trader.py)
             current_scan_symbols = self.active_symbols[:p.scan_limit]
@@ -415,8 +455,9 @@ class BacktestEngine:
                 last = ind.iloc[-1]
                 atr_val = last["atr_14"]
                 price = last["close"]
-                if price > 0 and atr_val / price > 0.05:
-                    continue
+                # [D12 FIX] ATR/price volatility filter removed — live trader does NOT have this check
+                # if price > 0 and atr_val / price > 0.05:
+                #     continue
 
                 open_list = list(self.open_trades.values())
                 longs = [tr for tr in open_list if tr["direction"] == BUY]
@@ -451,6 +492,12 @@ class BacktestEngine:
                         continue
                     if direction == SELL and len(shorts) >= p.max_same_direction:
                         continue
+
+                    # [M3 FIX] Alpha-X exposure cap (matches live trader)
+                    if "alpha_x" in sig.get("strategies", []):
+                        alpha_count = sum(1 for tr in self.open_trades.values() if tr.get("is_alpha"))
+                        if alpha_count >= 7:
+                            continue
 
                     self._open_trade(sym, ind.iloc[-1], sig, t)
 
