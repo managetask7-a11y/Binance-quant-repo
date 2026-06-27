@@ -168,7 +168,7 @@ class BacktestEngine:
             "tp1": tp1,
             "tp2": tp2,
             "sl_dist_pct": abs(fill - sl) / fill * 100 if fill > 0 else 0,
-            "entry_time": bar_time,
+            "entry_time": bar_time + pd.Timedelta(minutes=CANDLE_TF_MIN),
             "scan_count": 0,
             "atr": atr,
             "atr_val": atr_val,
@@ -335,7 +335,7 @@ class BacktestEngine:
         pnl_pct = (pnl_usd / (trade["qty"] * entry / self.leverage)) * 100 if trade["qty"] > 0 else 0
 
         trade["exit_price"] = exit_price
-        trade["exit_time"] = bar_time
+        trade["exit_time"] = bar_time + pd.Timedelta(minutes=CANDLE_TF_MIN)
         trade["pnl_pct"] = pnl_pct
         trade["pnl_usd"] = pnl_usd
         trade["reason"] = reason
@@ -510,7 +510,7 @@ class BacktestEngine:
         for sym in list(self.open_trades.keys()):
             if sym in all_data and len(all_data[sym]) > 0:
                 last = all_data[sym].iloc[-1]
-                self._close_trade(sym, last["close"], "BACKTEST_END", all_data[sym].index[-1])
+                self._close_trade(sym, last["close"], "BACKTEST_END", all_data[sym].index[-1])  # exit_time shift applied inside _close_trade
 
         elapsed = time.time() - t0
         print(f"\n  Backtest completed in {elapsed:.1f}s")

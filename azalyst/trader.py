@@ -3,7 +3,7 @@ from __future__ import annotations
 import signal
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -805,7 +805,7 @@ class LiveTrader:
             "tp1": tp1,
             "tp2": tp2,
             "sl_dist_pct": round(sl_dist_pct, 4),
-            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "entry_time": datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat(),
             "scan_count": 0,
             "max_price": fill_price,
             "min_price": fill_price,
@@ -815,13 +815,6 @@ class LiveTrader:
             "is_alpha": "alpha_x" in sig.get("strategies", []),
             "extended": False,
         }
-        # Support virtual fallback for missing demo markets (e.g. ICP)
-        if self.broker.is_live and getattr(self.broker, "testnet", False):
-            trading_markets = getattr(self.broker, "get_trading_markets", lambda: [])()
-            if trading_markets and symbol not in trading_markets:
-                trade["is_paper"] = True
-                logger.warning(f"⚠️ {symbol} missing on Demo Exchange! Executing as VIRTUAL paper trade.")
-
         if self.broker.is_live and not trade.get("is_paper", False):
             try:
                 side = "buy" if direction == BUY else "sell"
@@ -1154,7 +1147,7 @@ class LiveTrader:
         self.daily_pnl += pnl_usd
 
         trade["exit_price"] = exit_price
-        trade["exit_time"] = datetime.now(timezone.utc).isoformat()
+        trade["exit_time"] = datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat()
         trade["pnl_pct"] = pnl_pct
         trade["pnl_usd"] = pnl_usd
         trade["reason"] = reason
