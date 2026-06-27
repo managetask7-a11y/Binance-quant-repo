@@ -159,6 +159,9 @@ def save_trades_csv(report: dict, label: str = "default"):
     trades = report.get("trades", [])
     if not trades:
         return
+        
+    # Sort trades in reverse chronological order (newest exit first) to match live UI
+    trades = sorted(trades, key=lambda x: x.get("exit_time", 0), reverse=True)
 
     safe_label = label.replace(" ", "_").replace("(", "").replace(")", "").replace(",", "").lower()
     filename = f"backtest_trades_{safe_label}.csv"
@@ -175,8 +178,8 @@ def save_trades_csv(report: dict, label: str = "default"):
                 writer.writerow([
                     t["symbol"],
                     "LONG" if t["direction"] == BUY else "SHORT",
-                    t["entry_time"],
-                    t["exit_time"],
+                    pd.to_datetime(t["entry_time"]).tz_convert("Asia/Kolkata").strftime("%Y-%m-%d %H:%M:%S IST"),
+                    pd.to_datetime(t["exit_time"]).tz_convert("Asia/Kolkata").strftime("%Y-%m-%d %H:%M:%S IST") if t["exit_time"] else "",
                     f"{t['entry_price']:.6f}",
                     f"{t['exit_price']:.6f}",
                     f"{t.get('sl_dist_pct', 0):.2f}%",

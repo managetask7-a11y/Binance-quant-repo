@@ -37,7 +37,7 @@ def _build_config() -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Azalyst Alpha X - Industrial Backtester")
-    parser.add_argument("--start-date", type=str, required=True, help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--start-date", type=str, required=True, help="Start date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
     parser.add_argument("--end-date", type=str, default=None, help="End date (YYYY-MM-DD, default: today)")
     parser.add_argument("--top-coins", type=int, default=25, help="Number of top coins (default: 25)")
     parser.add_argument("--dynamic-top", action="store_true", help="Enable dynamic symbol selection during backtest")
@@ -46,13 +46,17 @@ def main():
     parser.add_argument("--no-regime", action="store_true", help="Disable regime adaptation")
     parser.add_argument("--clear-cache", action="store_true", help="Clear cached data and exit")
     parser.add_argument("--optimize", action="store_true", help="Compare regime vs no-regime")
+    parser.add_argument("--initial-balance", type=float, default=None, help="Override initial balance for this backtest run")
     args = parser.parse_args()
 
     if args.clear_cache:
         DataProvider.clear_cache()
         return
 
-    start_date = datetime.strptime(args.start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    if "T" in args.start_date:
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+    else:
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     if args.end_date:
         end_date = datetime.strptime(args.end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     else:
@@ -89,6 +93,10 @@ def main():
     config = _build_config()
 
     if not args.optimize:
+        if args.initial_balance is not None:
+            config["initial_balance"] = args.initial_balance
+            print(f"  [OVERRIDE] Initial Balance set to ${args.initial_balance:.2f}")
+
         use_regime = not args.no_regime
         label = "REGIME-ADAPTIVE" if use_regime else "STATIC (NO REGIME)"
         engine = BacktestEngine(config, use_regime=use_regime)
@@ -103,6 +111,10 @@ def main():
         save_trades_csv(report, label)
     else:
         results = {}
+
+        if args.initial_balance is not None:
+            config["initial_balance"] = args.initial_balance
+            print(f"  [OVERRIDE] Initial Balance set to ${args.initial_balance:.2f}")
 
         print("\n  [1/2] Running REGIME-ADAPTIVE backtest...")
         engine_regime = BacktestEngine(config, use_regime=True)
