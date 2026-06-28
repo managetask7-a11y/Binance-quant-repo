@@ -158,11 +158,10 @@ def print_report(report: dict, label: str = "DEFAULT"):
 
 def save_trades_csv(report: dict, label: str = "default"):
     trades = report.get("trades", [])
-    if not trades:
-        return
-        
-    # Sort trades in reverse chronological order (newest exit first) to match live UI
-    trades = sorted(trades, key=lambda x: x.get("exit_time", 0), reverse=True)
+    # FORCED PARITY SORTING:
+    # We MUST sort purely by Entry Time Descending (Newest Entries First)
+    # because Exit Times are different between Live and Backtest!
+    trades = sorted(trades, key=lambda x: x.get("entry_time", 0), reverse=True)
 
     safe_label = label.replace(" ", "_").replace("(", "").replace(")", "").replace(",", "").lower()
     filename = f"backtest_trades_{safe_label}.csv"

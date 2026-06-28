@@ -681,11 +681,13 @@
             return;
         }
 
-        // Sort chronologically by entry_time
+        // FORCED PARITY SORTING:
+        // We MUST sort purely by Entry Time Descending (Newest Entries First)
+        // because Exit Times are different between Live and Backtest!
         trades.sort(function(a, b) {
-            return new Date(a.entry_time) - new Date(b.entry_time);
+            return new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime();
         });
-        var recent = trades;
+        var recent = trades.slice(0, 50);
         tbody.innerHTML = recent.map(function (t) {
             var sideClass = t.direction === "LONG" ? "side-long" : "side-short";
             return "<tr>" +
