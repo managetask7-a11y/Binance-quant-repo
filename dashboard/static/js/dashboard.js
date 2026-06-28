@@ -27,6 +27,13 @@
         return (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
     }
 
+    function formatIST(isoStr) {
+        if (!isoStr) return "--";
+        var d = new Date(isoStr);
+        if (isNaN(d)) return "--";
+        return d.toLocaleString("en-US", {timeZone: "Asia/Kolkata", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:true});
+    }
+
     function pnlClass(v) {
         var n = parseFloat(v);
         if (isNaN(n)) return "";
@@ -674,7 +681,11 @@
             return;
         }
 
-        var recent = trades.slice(-50).reverse();
+        // Sort chronologically by entry_time
+        trades.sort(function(a, b) {
+            return new Date(a.entry_time) - new Date(b.entry_time);
+        });
+        var recent = trades;
         tbody.innerHTML = recent.map(function (t) {
             var sideClass = t.direction === "LONG" ? "side-long" : "side-short";
             return "<tr>" +
@@ -690,7 +701,7 @@
                 "<td>" + formatUSD(t.exit_value) + "</td>" +
                 "<td>" + reasonTag(t.reason) + "</td>" +
                 '<td><div class="strategies-tags">' + strategyTags(t.strategies) + "</div></td>" +
-                "<td>" + timeAgo(t.exit_time) + "</td>" +
+                "<td><div style='font-size:0.7rem; white-space:nowrap; color:#9ca3af'>IN: " + formatIST(t.entry_time) + "<br>OUT: " + formatIST(t.exit_time) + "</div></td>" +
                 "</tr>";
         }).join("");
     }
