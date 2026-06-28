@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pandas as pd
 import csv
 from collections import defaultdict
 from pathlib import Path
