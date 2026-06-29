@@ -182,31 +182,26 @@ def detect(df: pd.DataFrame, htf_df: pd.DataFrame = None, symbol: str = None) ->
 
     htf_s = _htf_score(htf_df)
 
-    # Build a history of smoothed composite scores over the lookback window.
-    # At each step, the smoothed value is the mean of the last _SMOOTHING_PERIOD
-    # raw composite scores — exactly like the old deque approach, but computed
-    # from data instead of accumulated state.
-    lookback = min(len(df), _LOOKBACK_BARS)
-    smoothed_history = []
-    for offset in range(lookback):
-        idx = len(df) - lookback + offset
-        chunk = df.iloc[max(0, idx - _SMOOTHING_PERIOD + 1):idx + 1]
-        if len(chunk) < 1:
-            smoothed_history.append(0.0)
-            continue
-        last_n = chunk.tail(_SMOOTHING_PERIOD)
-        comps = []
-        for _, bar in last_n.iterrows():
-            c = (
-                _ema_stack_score(bar) * 0.25 +
-                _adx_di_score(bar) * 0.20 +
-                _supertrend_score(bar) * 0.15 +
-                _bbw_score(bar) * 0.10 +
-                _macd_slope_score(bar) * 0.10 +
-                htf_s * 0.20
-            )
-            comps.append(c)
-        smoothed_history.append(float(np.mean(comps)))
+    # Compute raw scores exactly ONCE per required bar
+    req_bars = _LOOKBACK_BARS + _SMOOTHING_PERIOD - 1
+    lookback = min(len(df), req_bars)
+    
+    recent = df.tail(lookback)
+    
+    def calc_score(bar):
+        return (
+            _ema_stack_score(bar) * 0.25 +
+            _adx_di_score(bar) * 0.20 +
+            _supertrend_score(bar) * 0.15 +
+            _bbw_score(bar) * 0.10 +
+            _macd_slope_score(bar) * 0.10 +
+            htf_s * 0.20
+        )
+        
+    raw_scores = recent.apply(calc_score, axis=1)
+    
+    # Use pandas rolling mean
+    smoothed_history = raw_scores.rolling(_SMOOTHING_PERIOD).mean().dropna().tolist()
 
     # Replay hysteresis with hold counter (all from data — no global state).
     # Start from SIDEWAYS and walk forward through the score history.

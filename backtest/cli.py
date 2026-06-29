@@ -11,6 +11,7 @@ from azalyst.config import (
     LEVERAGE, RISK_PER_TRADE, ATR_MULT, TP_RR_RATIO,
     SL_MIN_PCT, SL_MAX_PCT, MAX_OPEN_TRADES, MAX_HOLD_SCANS,
     BREAKEVEN_AFTER_SCANS, MAX_SAME_DIRECTION, GOLD_COINS,
+    LONG_ONLY_COINS, SHORT_ONLY_COINS,
     REGIME_BTC_SYMBOL, INITIAL_BALANCE, MARGIN_PER_TRADE_PCT,
 )
 from backtest.data import DataProvider
@@ -74,7 +75,7 @@ def main():
     
     if args.gold_list:
         print("  [GOLD LIST MODE] Using hardcoded list of high-quality coins.")
-        trading_symbols = GOLD_COINS
+        trading_symbols = list(set(GOLD_COINS + LONG_ONLY_COINS + SHORT_ONLY_COINS))
     else:
         # If top_coins is 0, fetch ALL symbols. Otherwise, if dynamic_top is enabled, fetch 100.
         if args.top_coins == 0:

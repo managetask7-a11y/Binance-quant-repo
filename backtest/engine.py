@@ -73,16 +73,19 @@ class BacktestEngine:
         # matching the live trader which always fetches 1000 bars and passes
         # them all to detect(). The stateless detector uses the last N bars
         # for smoothing + hysteresis, so more history = more stable.
-        btc_slice = df.iloc[:idx + 1]
+        btc_slice = df.iloc[max(0, idx - 1000):idx + 1]
 
         htf_slice = None
         if btc_sym in htf_data:
             try:
                 # Use closed-candle filter (matches signal scanning and live trader)
                 htf_tf_mins = 240  # 4 hours
-                closed_htf = htf_data[btc_sym][htf_data[btc_sym].index + pd.Timedelta(minutes=htf_tf_mins) <= current_time]
-                if not closed_htf.empty and len(closed_htf) >= 200:
-                    htf_slice = closed_htf
+                target_time = current_time - pd.Timedelta(minutes=htf_tf_mins)
+                htf_idx = htf_data[btc_sym].index.searchsorted(target_time, side="right")
+                if htf_idx > 0:
+                    closed_htf = htf_data[btc_sym].iloc[max(0, htf_idx - 1000):htf_idx]
+                    if not closed_htf.empty and len(closed_htf) >= 200:
+                        htf_slice = closed_htf
             except Exception:
                 pass
 
@@ -366,6 +369,9 @@ class BacktestEngine:
         bar_counter = 0
         total = len(timeline)
 
+        from concurrent.futures import ThreadPoolExecutor
+
+        executor = ThreadPoolExecutor(max_workers=16)
         for t in timeline:
             bar_counter += 1
 
@@ -432,6 +438,8 @@ class BacktestEngine:
 
             # Sync scan limit with active personality (Matches live trader.py)
             current_scan_symbols = self.active_symbols[:p.scan_limit]
+            
+            scan_futures = {}
             for sym in current_scan_symbols:
                 df = all_data[sym]
                 if sym in self.open_trades:
@@ -451,37 +459,37 @@ class BacktestEngine:
                 if idx < 200:
                     continue
 
-                ind = df.iloc[:idx + 1]
+                ind = df.iloc[max(0, idx - 1000):idx + 1]
 
                 if ind["atr_14"].iloc[-1] == 0 or np.isnan(ind["atr_14"].iloc[-1]):
                     continue
-
-                last = ind.iloc[-1]
-                atr_val = last["atr_14"]
-                price = last["close"]
-                # [D12 FIX] ATR/price volatility filter removed — live trader does NOT have this check
-                # if price > 0 and atr_val / price > 0.05:
-                #     continue
-
-                open_list = list(self.open_trades.values())
-                longs = [tr for tr in open_list if tr["direction"] == BUY]
-                shorts = [tr for tr in open_list if tr["direction"] == SELL]
 
                 htf_slice = None
                 if sym in htf_data:
                     try:
                         import pandas as pd
                         htf_tf_mins = 240 # 4 hours
-                        # Only use HTF candles that have fully closed at or before time t
-                        closed_htf = htf_data[sym][htf_data[sym].index + pd.Timedelta(minutes=htf_tf_mins) <= t]
-                        if not closed_htf.empty and len(closed_htf) >= 200:
-                            htf_slice = closed_htf
+                        target_time = t - pd.Timedelta(minutes=htf_tf_mins)
+                        htf_idx = htf_data[sym].index.searchsorted(target_time, side="right")
+                        if htf_idx > 0:
+                            closed_htf = htf_data[sym].iloc[max(0, htf_idx - 1000):htf_idx]
+                            if not closed_htf.empty and len(closed_htf) >= 200:
+                                htf_slice = closed_htf
                     except Exception:
                         pass
+                
+                scan_futures[sym] = (ind, executor.submit(multi_strategy_scan, ind, htf_df=htf_slice, personality=p))
 
-                sig = multi_strategy_scan(ind, htf_df=htf_slice, personality=p)
+            for sym, (ind, future) in scan_futures.items():
+                if len(self.open_trades) >= min(self.max_open, p.max_open_trades):
+                    break
+                    
+                sig = future.result()
                 if sig:
                     direction = sig["direction"]
+                    open_list = list(self.open_trades.values())
+                    longs = [tr for tr in open_list if tr["direction"] == BUY]
+                    shorts = [tr for tr in open_list if tr["direction"] == SELL]
                     
                     try:
                         from azalyst.config import LONG_ONLY_COINS, SHORT_ONLY_COINS
@@ -511,6 +519,8 @@ class BacktestEngine:
             if sym in all_data and len(all_data[sym]) > 0:
                 last = all_data[sym].iloc[-1]
                 self._close_trade(sym, last["close"], "BACKTEST_END", all_data[sym].index[-1])  # exit_time shift applied inside _close_trade
+
+        executor.shutdown(wait=False)
 
         elapsed = time.time() - t0
         print(f"\n  Backtest completed in {elapsed:.1f}s")
