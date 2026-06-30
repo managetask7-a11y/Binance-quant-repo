@@ -475,12 +475,14 @@ class LiveTrader:
     def _refresh_top_coins(self):
         self.last_symbol_refresh_time = time.time()
         
-        # [SYNCED WITH BACKTEST] Use the Gold List
-        from azalyst.config import GOLD_COINS
+        # [SYNCED WITH BACKTEST] Use the Gold List + Directional Lists
+        from azalyst.config import GOLD_COINS, LONG_ONLY_COINS, SHORT_ONLY_COINS
         scan_limit = self.active_personality.scan_limit
         self.current_scan_limit = scan_limit
         
-        logger.info(f"Using Gold List for top {scan_limit} coins...")
+        all_gold_coins = list(set(GOLD_COINS + LONG_ONLY_COINS + SHORT_ONLY_COINS))
+        
+        logger.info(f"Using Gold List ({len(all_gold_coins)} coins) for top {scan_limit} coins...")
         
         # We still check if the markets exist, just to be safe
         logger.info("Loading markets from Binance to verify Gold List symbols...")
@@ -489,14 +491,14 @@ class LiveTrader:
             # --- RATE LIMIT COOLDOWN: 3s pause after heavy load_markets call ---
             time.sleep(3)
             verified_symbols = []
-            for s in GOLD_COINS:
+            for s in all_gold_coins:
                 if s in markets and markets[s].get("active", True):
                     verified_symbols.append(s)
             self.symbols = verified_symbols
         except Exception as e:
             logger.warning(f"⚠️ Failed to verify symbols from Binance (IP Ban/Rate Limit?): {e}")
             logger.info("Falling back to raw Gold List symbols.")
-            self.symbols = GOLD_COINS
+            self.symbols = all_gold_coins
 
         logger.info(f"Selected top {len(self.symbols)} Gold List symbols:")
         for s in self.symbols[:5]:
