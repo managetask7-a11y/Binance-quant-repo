@@ -199,6 +199,7 @@ class LiveBinanceBroker(BaseBroker):
             logger.info(f"🧹 Cancelled all open orders for {symbol}")
         except Exception as e:
             logger.error(f"Failed to cancel orders for {symbol}: {e}")
+            raise  # Raise so caller can retry
 
     def load_markets(self) -> dict:
         return self._public_exchange.load_markets()
@@ -229,4 +230,4 @@ class LiveBinanceBroker(BaseBroker):
             return None
         except Exception as exc:
             logger.error(f"Failed to fetch position for {symbol}: {exc}")
-            return None
+            raise  # Raise so caller doesn't assume position is 0 on network error
