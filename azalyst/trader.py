@@ -945,13 +945,17 @@ class LiveTrader:
                 
                 if current_time - last_check >= 60:
                     trade["last_pos_check"] = current_time
-                    pos = self.broker.fetch_position(symbol)
-                    
-                    # If position doesn't exist or contracts == 0, Binance closed the trade!
-                    if pos is None or float(pos.get("contracts", 0)) == 0:
-                        closed = True
-                        reason = "BINANCE_NATIVE_EXIT (SL/TP/Trail Hit)"
+                    try:
+                        pos = self.broker.fetch_position(symbol)
                         
+                        # If position doesn't exist or contracts == 0, Binance closed the trade!
+                        if pos is None or float(pos.get("contracts", 0)) == 0:
+                            closed = True
+                            reason = "BINANCE_NATIVE_EXIT (SL/TP/Trail Hit)"
+                    except Exception as e:
+                        logger.error(f"Network error checking {symbol} native position, skipping this cycle: {e}")
+                        
+                    if closed:
                         # Try to fetch actual exit price from history, fallback to current price
                         hist = self.broker.fetch_trade_history(symbol, 1)
                         if hist and len(hist) > 0:
@@ -959,8 +963,32 @@ class LiveTrader:
                         else:
                             exit_price = current_price
                             
+                        # Infer the exact reason based on exit price
+                        is_buy = (direction == BUY)
+                        entry_price = trade.get("entry_price", 0)
+                        sl_price = trade.get("sl_price", 0)
+                        tp_price = trade.get("tp1") or trade.get("tp_price", 0)
+                        
+                        if is_buy:
+                            if exit_price <= sl_price * 1.002:
+                                reason = "TRAILING_STOP" if exit_price > entry_price else "STOP_LOSS"
+                            elif tp_price and exit_price >= tp_price * 0.998:
+                                reason = "TAKE_PROFIT"
+                            else:
+                                reason = "BINANCE_NATIVE_EXIT"
+                        else:
+                            if exit_price >= sl_price * 0.998:
+                                reason = "TRAILING_STOP" if exit_price < entry_price else "STOP_LOSS"
+                            elif tp_price and exit_price <= tp_price * 1.002:
+                                reason = "TAKE_PROFIT"
+                            else:
+                                reason = "BINANCE_NATIVE_EXIT"
+                            
                         # Wipe the surviving conditional order (OCO replacement)
-                        self.broker.cancel_symbol_orders(symbol)
+                        try:
+                            self.broker.cancel_symbol_orders(symbol)
+                        except Exception as e:
+                            logger.error(f"Failed to wipe conditional orders for {symbol} after native exit: {e}")
                     
             # ----------------------------------------------------
             # PAPER TRADES (Virtual Execution)
@@ -1167,7 +1195,12 @@ class LiveTrader:
                     # --- PRE-CHECK POSITION TO PREVENT OPPOSITE ORDERS ---
                     # If the user manually closed the trade on Binance, position is 0.
                     # We must not blindly send a market order, otherwise it opens a Short/Long.
-                    pos = self.broker.fetch_position(symbol)
+                    try:
+                        pos = self.broker.fetch_position(symbol)
+                    except Exception:
+                        logger.warning(f"Network error checking {symbol} native position during close. Retrying...")
+                        raise  # Trigger the retry loop
+                        
                     actual_qty = abs(float(pos.get("contracts", 0) or pos.get("size", 0))) if pos else 0
                     
                     if actual_qty < 0.000001:
@@ -1182,7 +1215,12 @@ class LiveTrader:
                     
                     # 2. VERIFY position is actually 0
                     time.sleep(1.5) # Wait for Binance to process
-                    pos = self.broker.fetch_position(symbol)
+                    try:
+                        pos = self.broker.fetch_position(symbol)
+                    except Exception:
+                        logger.warning(f"Network error verifying {symbol} position close. Retrying...")
+                        raise
+                        
                     new_qty = abs(float(pos.get("contracts", 0) or pos.get("size", 0))) if pos else 0
                     
                     if new_qty < 0.000001: # Essentially zero
