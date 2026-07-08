@@ -823,7 +823,14 @@ class LiveTrader:
                 
                 # Dynamically set leverage based on Personality before executing
                 logger.info(f"Setting {symbol} leverage to {p.leverage}x for {p.name}")
-                self.broker.set_leverage(symbol, p.leverage)
+                actual_leverage = self.broker.set_leverage(symbol, p.leverage)
+                
+                # If Binance capped the leverage lower, recalculate position size
+                if actual_leverage < p.leverage:
+                    logger.info(f"Recalculating {symbol} qty: {p.leverage}x -> {actual_leverage}x")
+                    max_qty = (self.balance * actual_leverage) / fill_price
+                    qty = min(qty, max_qty)
+                    trade["qty"] = qty
                 
                 # 1. Place Entry
                 self.broker.place_market_order(symbol, side, qty)

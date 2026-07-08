@@ -111,11 +111,30 @@ class LiveBinanceBroker(BaseBroker):
                     continue
                 raise
 
-    def set_leverage(self, symbol: str, leverage: int) -> None:
-        try:
-            self._exchange.set_leverage(leverage, symbol)
-        except Exception as exc:
-            logger.warning(f"Could not set leverage for {symbol}: {exc}")
+    def set_leverage(self, symbol: str, leverage: int) -> int:
+        """Set leverage for a symbol. If Binance rejects it, auto-retry with lower values.
+        Returns the actual leverage that was successfully set."""
+        # Try requested leverage first, then step down
+        attempts = [leverage] + [lev for lev in [15, 10, 8, 5, 3, 2, 1] if lev < leverage]
+        
+        for lev in attempts:
+            try:
+                self._exchange.set_leverage(lev, symbol)
+                if lev != leverage:
+                    logger.info(f"⚙️ {symbol} max leverage is {lev}x (requested {leverage}x)")
+                return lev
+            except Exception as exc:
+                err_str = str(exc)
+                # Binance error -4028 = "Leverage N is not valid"
+                if "-4028" in err_str or "not valid" in err_str.lower():
+                    continue  # Try next lower leverage
+                else:
+                    # Different error (network, auth, etc.) — log and return requested
+                    logger.warning(f"Could not set leverage for {symbol}: {exc}")
+                    return leverage
+        
+        logger.warning(f"All leverage attempts failed for {symbol}, defaulting to 1x")
+        return 1
 
     def set_margin_mode(self, symbol: str, margin_mode: str) -> None:
         try:
