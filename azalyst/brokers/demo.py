@@ -27,8 +27,8 @@ class DemoBroker(BaseBroker):
         """Paper trades use virtual SL/TP tracking in the engine, so we just return None here."""
         return {"tp": None, "trail": None}
 
-    def set_leverage(self, symbol: str, leverage: int) -> None:
-        pass
+    def set_leverage(self, symbol: str, leverage: int) -> int:
+        return leverage
 
     def load_markets(self) -> dict:
         return self._exchange.load_markets()
