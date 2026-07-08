@@ -860,6 +860,7 @@ class LiveTrader:
                         # Re-calculate TP based on updated SL distance
                         tp_dist = sl_dist * p.tp_rr_ratio
                         trade["tp_price"] = fill_price + tp_dist if direction == BUY else fill_price - tp_dist
+                        trade["tp1"] = trade["tp_price"]  # Keep tp1 in sync
                         
                         logger.info(f"🔄 Synced {symbol} real entry price from Binance: ${fill_price:.4f}")
                         
@@ -873,8 +874,8 @@ class LiveTrader:
                 # Clamp callback_rate between 0.1% and 5.0% (Binance Limits)
                 callback_rate = max(0.1, min(5.0, callback_rate))
                 
-                # Set Trailing Stop activation at TP1
-                activation_price = trade["tp1"]
+                # Only set trailing stop activation if the personality uses trailing stops
+                activation_price = trade["tp1"] if p.trailing_enabled else None
                 
                 self.broker.place_native_orders(symbol, side, qty, trade["sl_price"], trade["tp_price"], callback_rate, activation_price)
 
@@ -970,28 +971,44 @@ class LiveTrader:
                         else:
                             exit_price = current_price
                             
-                        # Infer the exact reason based on exit price
-                        is_buy = (direction == BUY)
-                        entry_price = trade.get("entry_price", 0)
-                        sl_price = trade.get("sl_price", 0)
-                        tp_price = trade.get("tp1") or trade.get("tp_price", 0)
-                        
-                        if is_buy:
-                            if exit_price <= sl_price * 1.002:
-                                reason = "TRAILING_STOP" if exit_price > entry_price else "STOP_LOSS"
-                            elif tp_price and exit_price >= tp_price * 0.998:
-                                reason = "TAKE_PROFIT"
-                            else:
-                                reason = "BINANCE_NATIVE_EXIT"
-                        else:
-                            if exit_price >= sl_price * 0.998:
-                                reason = "TRAILING_STOP" if exit_price < entry_price else "STOP_LOSS"
-                            elif tp_price and exit_price <= tp_price * 1.002:
-                                reason = "TAKE_PROFIT"
-                            else:
-                                reason = "BINANCE_NATIVE_EXIT"
+                        # Determine exact exit reason by checking which Binance order executed
+                        reason = "BINANCE_NATIVE_EXIT"
+                        try:
+                            # Fetch recent closed orders to see which type triggered
+                            closed_orders = self.broker._exchange.fetch_closed_orders(symbol, limit=5)
+                            for order in reversed(closed_orders):
+                                status = order.get("status", "")
+                                order_type = order.get("type", "").upper()
+                                if status == "closed":
+                                    if "TRAILING" in order_type:
+                                        reason = "TRAILING_STOP"
+                                        break
+                                    elif "TAKE_PROFIT" in order_type:
+                                        reason = "TAKE_PROFIT"
+                                        break
+                                    elif "STOP" in order_type:
+                                        reason = "STOP_LOSS"
+                                        break
+                        except Exception as e:
+                            logger.warning(f"Could not determine exit type for {symbol} from order history: {e}")
+                            # Fallback: infer from price proximity
+                            is_buy = (direction == BUY)
+                            entry_price = trade.get("entry_price", 0)
+                            sl_price = trade.get("sl_price", 0)
+                            tp_price = trade.get("tp1") or trade.get("tp_price", 0)
                             
-                        # Wipe the surviving conditional order (OCO replacement)
+                            if is_buy:
+                                if exit_price <= sl_price * 1.002:
+                                    reason = "TRAILING_STOP" if exit_price > entry_price else "STOP_LOSS"
+                                elif tp_price and exit_price >= tp_price * 0.998:
+                                    reason = "TAKE_PROFIT"
+                            else:
+                                if exit_price >= sl_price * 0.998:
+                                    reason = "TRAILING_STOP" if exit_price < entry_price else "STOP_LOSS"
+                                elif tp_price and exit_price <= tp_price * 1.002:
+                                    reason = "TAKE_PROFIT"
+                            
+                        # Wipe the surviving conditional orders
                         try:
                             self.broker.cancel_symbol_orders(symbol)
                         except Exception as e:

@@ -190,22 +190,24 @@ class LiveBinanceBroker(BaseBroker):
             logger.error(f"Failed to place Native TP for {symbol}: {e}")
 
         try:
-            # 3. Trailing Stop Loss (Activates in profit)
-            trail_params = {
-                "callbackRate": round(callback_rate, 1),
-                "reduceOnly": True
-            }
-            if activation_price:
+            # 3. Trailing Stop Loss (Only placed if personality has trailing enabled)
+            if activation_price is not None:
+                trail_params = {
+                    "callbackRate": round(callback_rate, 1),
+                    "reduceOnly": True
+                }
                 trail_params["activationPrice"] = activation_price
-                
-            trail_order = self._exchange.create_order(
-                symbol=symbol,
-                type="TRAILING_STOP_MARKET",
-                side=exit_side,
-                amount=qty,
-                params=trail_params
-            )
-            logger.info(f"📍 Native Trailing SL set | Activation: ${activation_price:.4f} | Callback: {callback_rate:.1f}%")
+                    
+                trail_order = self._exchange.create_order(
+                    symbol=symbol,
+                    type="TRAILING_STOP_MARKET",
+                    side=exit_side,
+                    amount=qty,
+                    params=trail_params
+                )
+                logger.info(f"📍 Native Trailing SL set | Activation: ${activation_price:.4f} | Callback: {callback_rate:.1f}%")
+            else:
+                logger.info(f"📍 Trailing stop SKIPPED for {symbol} (personality has trailing_enabled=False)")
         except Exception as e:
             logger.error(f"Failed to place Native Trailing SL for {symbol}: {e}")
 
